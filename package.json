@@ -1,0 +1,19 @@
+{
+  "name": "Mediasoup-Server",
+  "version": "1.0.0",
+  "description": "Mediasoup-Server",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://codehub.devcloud.cn-east-3.huaweicloud.com/MyMeeting_zjh00001/Mediasoup-Server.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "mediasoup": "^3.7.18"
+  }
+}

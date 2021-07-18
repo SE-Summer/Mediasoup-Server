@@ -14,7 +14,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "events": "^3.3.0",
     "express": "^4.17.1",
-    "mediasoup": "^3.7.18"
+    "mediasoup": "^3.7.18",
+    "protoo-server": "^4.0.6"
   }
 }

@@ -11,7 +11,7 @@ export class PeerImpl extends EventEmitter implements Peer{
     private device : object;
     private rtpCapabilities : MTypes.RtpCapabilities;
     private transports = new Map<string, MTypes.WebRtcTransport>();
-    private producers = new Map<string, MTypes.Producer>();
+    public producers = new Map<string, MTypes.Producer>();
     private consumers = new Map<string, MTypes.Consumer>();
     private dataProducers = new Map<string, MTypes.DataProducer>();
     private dataConsumers = new Map<string, MTypes.DataConsumer>();
@@ -70,6 +70,15 @@ export class PeerImpl extends EventEmitter implements Peer{
         return null;
     }
 
+    getConsumerTransport() {
+        return Array.from(this.transports.values())
+            .find((t) => t.appData.transportType === 'consumer')
+    }
+
+    getAllProducer() {
+        return this.producers;
+    }
+
     setTransport(transportID: string, transport: MTypes.WebRtcTransport) {
         this.transports.set(transportID, transport);
     }
@@ -91,16 +100,16 @@ export class PeerImpl extends EventEmitter implements Peer{
     }
 
     setPeerInfo({
-                    displayName, joined, device, rtpCapablities
-    }: { displayName: any; joined: any; device: any; rtpCapablities: any; }) {
+                    displayName, joined, device, rtpCapabilities
+    }: { displayName: any; joined: any; device: any; rtpCapabilities: any; }) {
         if (displayName !== undefined)
             this.displayName = displayName;
         if (joined !== undefined)
             this.joined = joined
         if (device !== undefined)
             this.device = device
-        if (rtpCapablities !== undefined)
-            this.rtpCapabilities = rtpCapablities
+        if (rtpCapabilities !== undefined)
+            this.rtpCapabilities = rtpCapabilities
     }
 
     deleteTransport (transportID:string) {

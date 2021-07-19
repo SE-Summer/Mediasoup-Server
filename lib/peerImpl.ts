@@ -1,24 +1,25 @@
 import {EventEmitter} from 'events';
 import {types as MTypes} from 'mediasoup';
 import {Peer} from "./peer";
+import * as socketio from 'socket.io';
 
 export class PeerImpl extends EventEmitter implements Peer{
-    id : string;
-    roomID : string;
-    displayName : string;
-    joined : boolean = false;
-    device : object;
-    rtpCapabilities : MTypes.RtpCapabilities;
-    transports = new Map<string, MTypes.WebRtcTransport>();
-    producers = new Map<string, MTypes.Producer>();
-    consumers = new Map<string, MTypes.Consumer>();
-    dataProducers = new Map<string, MTypes.DataProducer>();
-    dataConsumers = new Map<string, MTypes.DataConsumer>();
+    public readonly id : string;
+    public socket : socketio.Socket;
+    private displayName : string;
+    private joined : boolean = false;
+    private device : object;
+    private rtpCapabilities : MTypes.RtpCapabilities;
+    private transports = new Map<string, MTypes.WebRtcTransport>();
+    private producers = new Map<string, MTypes.Producer>();
+    private consumers = new Map<string, MTypes.Consumer>();
+    private dataProducers = new Map<string, MTypes.DataProducer>();
+    private dataConsumers = new Map<string, MTypes.DataConsumer>();
 
-    constructor(id, roomId) {
+    constructor(id, socket) {
         super();
         this.id = id;
-        this.roomID = roomId;
+        this.socket = socket;
     }
 
 
@@ -27,7 +28,6 @@ export class PeerImpl extends EventEmitter implements Peer{
     getPeerInfo() {
         return {
             id : this.id,
-            roomID : this.roomID,
             displayName : this.displayName,
             joined : this.joined,
             device : this.device,
@@ -126,5 +126,9 @@ export class PeerImpl extends EventEmitter implements Peer{
 
     // endregion
 
-
+    close() {
+        this.transports.forEach((transport, key) => {
+            transport.close();
+        })
+    }
 }

@@ -68,6 +68,7 @@ export interface Peer{
                      device,
                      rtpCapablities
     });
+
     //endregion
 
     //region deleter
@@ -90,5 +91,5 @@ export interface Peer{
 
     //endregion
 
-
+    close();
 }

@@ -1,9 +1,11 @@
+import {PeerImpl} from "./peerImpl";
+
 const EventEmitter = require('events').EventEmitter;
 import {Peer} from './peer';
 const config = require('../config/config')
 
 
-class Room extends EventEmitter{
+export class Room extends EventEmitter{
     static async create({ worker, roomId })
     {
         //logger.info('create() [roomId:%s]', roomId);
@@ -12,21 +14,21 @@ class Room extends EventEmitter{
 
         const router = await worker.createRouter({ mediaCodecs });
 
-        const audioLevelObserver = await router.createAudioLevelObserver(
-            {
-                maxEntries : 1,
-                threshold  : -80,
-                interval   : 800
-            });
+        // const audioLevelObserver = await router.createAudioLevelObserver(
+        //     {
+        //         maxEntries : 1,
+        //         threshold  : -80,
+        //         interval   : 800
+        //     });
 
         return new Room(
             {
                 roomId,
-                router,
+                router
             });
     }
 
-    constructor({ roomId, router })
+    constructor({ roomId, router})
     {
         super();
         this.setMaxListeners(Infinity);
@@ -168,6 +170,9 @@ class Room extends EventEmitter{
         };
     }
 
-}
+    handleConnection(peerId, socket){
+        //socket.on('request', )
 
-module.exports = Room;
+        this._peers.set(peerId, new PeerImpl(peerId, socket))
+    }
+}

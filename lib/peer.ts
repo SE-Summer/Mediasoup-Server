@@ -21,6 +21,8 @@ export interface Peer{
 
     getDataConsumer (consumerID : string);
 
+    getAllProducer ();
+
     /**
      * @return peerInfo:
      * {
@@ -34,6 +36,11 @@ export interface Peer{
      *
      */
     getPeerInfo ();
+
+    /**
+     * @return consumerTransport : undefined if failed
+     */
+    getConsumerTransport();
 
     //endregion
 
@@ -66,7 +73,7 @@ export interface Peer{
                      displayName,
                      joined,
                      device,
-                     rtpCapablities
+                     rtpCapabilities
     });
 
     //endregion

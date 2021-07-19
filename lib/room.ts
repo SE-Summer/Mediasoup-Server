@@ -1,9 +1,11 @@
 import {PeerImpl} from "./peerImpl";
-
 const EventEmitter = require('events').EventEmitter;
 import {Peer} from './peer';
 const config = require('../config/config')
-
+import {RequestMethod} from "./global";
+import {Socket} from "socket.io";
+import {response} from "express";
+import {types as MTypes} from 'mediasoup';
 
 export class Room extends EventEmitter{
     static async create({ worker, roomId })
@@ -127,26 +129,21 @@ export class Room extends EventEmitter{
         return { id: producer.id };
     }
 
-    async createConsumer({peerId, transportId, producerId}) {
-        const peer = this._peers.get(peerId);
-        if (!peer)
-            throw new Error(`peer with id "${peerId}" does not exist`);
+    async createConsumer(consumerPeer : PeerImpl, producerPeer : PeerImpl, producer : MTypes.Producer) {
+        if (!consumerPeer)
+            throw new Error(`peer with id "${consumerPeer.id}" does not exist`);
 
-        if (!peer.getCapabilities())
+        if (!consumerPeer.getPeerInfo().rtpCapabilities)
             throw new Error('peer does not have rtpCapabilities');
 
-        const transport = peer.getTransport(transportId);
-        if (!transport)
-            throw new Error(`transport with id "${transportId}" does not exist`);
-
-        const consumer = await transport.consume(
+        const consumer = await consumerPeer.getConsumerTransport().consume(
             {
-                producerId,
-                rtpCapabilities : peer.getCapabilities()
+                producerId : producer.id,
+                rtpCapabilities : consumerPeer.getPeerInfo().rtpCapabilities
             });
 
         // Store it.
-        peer.setConsumer(consumer.id, consumer);
+        consumerPeer.setConsumer(consumer.id, consumer);
 
         // Set Consumer events.
         // consumer.on('transport close', () =>
@@ -161,9 +158,18 @@ export class Room extends EventEmitter{
         //     peer.deleteConsumer(consumer.id);
         // });
 
+        this._notify(consumerPeer.socket, 'newProducer', {
+            producerPeerId : producerPeer.id,
+            kind : producer.kind,
+            producerId : producer.id,
+            consumerId : consumer.id,
+            rtpParameters : consumer.rtpParameters,
+            type : consumer.type,
+        })
+
         return {
             id            : consumer.id,
-            producerId,
+            producerId : producer.id,
             kind          : consumer.kind,
             rtpParameters : consumer.rtpParameters,
             type          : consumer.type
@@ -172,7 +178,198 @@ export class Room extends EventEmitter{
 
     handleConnection(peerId, socket){
         //socket.on('request', )
-
         this._peers.set(peerId, new PeerImpl(peerId, socket))
+    }
+
+    private async _handleRequest(peer : PeerImpl, request, callback) {
+        switch (request.method) {
+            case RequestMethod.getRouterRtpCapabilities :
+            {
+                callback(null, {
+                    rtpCapabilities : this._router.rtpCapabilities
+                });
+                break;
+            }
+            case RequestMethod.join :
+            {
+                const {displayName, joined, device, rtpCapabilites} = request.data;
+
+                if (joined) {
+                    callback(null, {joined : true});
+                    break;
+                }
+
+                peer.setPeerInfo({
+                    displayName : displayName,
+                    joined : true,
+                    device : device,
+                    rtpCapabilities : rtpCapabilites
+                });
+
+                const joinedPeers = this._getJoinedPeers({excludePeer : peer});
+
+                const peerInfos = joinedPeers.map((joinedPeer) => ({
+                    id : joinedPeer.id,
+                    displayName : joinedPeer.displayName,
+                    device : joinedPeer.device
+                }));
+
+                callback(null, {peerInfos});
+
+                break;
+            }
+            case RequestMethod.createTransport :
+            {
+                const {transportType} = request.data
+
+                if (transportType !== 'consumer' && transportType !== 'producer') {
+                    callback('transport type ERROR!', {sendType : transportType});
+                    break;
+                }
+
+                const webRtcTransportOptions =
+                    {
+                        ...config.mediasoup.webRtcTransportOptions,
+                        appData : {
+                            transportType : transportType
+                        }
+                    };
+
+                const transport = await this._router.createWebRtcTransport(webRtcTransportOptions);
+
+                peer.setTransport(transport.id, transport);
+
+                callback(null,
+                    {
+                        id             : transport.id,
+                        iceParameters  : transport.iceParameters,
+                        iceCandidates  : transport.iceCandidates,
+                        dtlsParameters : transport.dtlsParameters,
+                        sctpParameters : transport.sctpParameters
+                    });
+                break;
+            }
+            case RequestMethod.connectWebRtcTransport :
+            {
+                const {transportId, dtlsParameters} = request.data;
+
+                const transport = peer.getTransport(transportId);
+                await transport.connect(dtlsParameters);
+
+                callback(null, {});
+                break;
+            }
+            case RequestMethod.consumer :
+            {
+                const {subscribeId} = request.data;
+
+                const subscribedInfo = [];
+                subscribeId.forEach((id) => {
+                    const subscribedPeer = this._peers.get(id);
+                    subscribedPeer.getAllProducer().forEach((producer) => {
+                        subscribedInfo.push(this.createConsumer(peer, subscribedPeer, producer));
+                    })
+                })
+                callback(null, {subscribedInfo});
+                break;
+            }
+            case RequestMethod.produce :
+            {
+                const {transportId, kind, rtpParameters} = request.data;
+                let {appData} = request.data;
+                const transport = peer.getTransport(transportId);
+
+                if(!transport){
+                    let error = `transport with id "${transportId}" not found`;
+                    callback(error, {});
+                    break;
+                }
+
+                appData = {...appData, peerId : peer.id};
+                const producer = await transport.produce(
+                    {kind,rtpParameters,appData});
+                peer.setProducer(producer.id, producer);
+                callback(null, {producerId : producer.id});
+
+                const joinedPeers = this._getJoinedPeers({excludePeer : peer});
+                joinedPeers.forEach((joinedPeer) => {
+                    this.createConsumer(joinedPeer, peer, producer);
+                })
+                break;
+            }
+            case RequestMethod.closeProducer :
+            {
+                break;
+            }
+            case RequestMethod.pauseProducer :
+            {
+                break;
+            }
+            case RequestMethod.resumeProducer :
+            {
+                break;
+            }
+            case RequestMethod.pauseConsumer :
+            {
+                break;
+
+            }
+            case RequestMethod.resumeConsumer :
+            {
+                break;
+
+            }
+            default :
+            {
+
+            }
+        }
+    }
+
+    _timeoutCallback(callback) {
+        let called = false;
+
+        const interval = setTimeout(() => {
+                if (called) {
+                    return;
+                }
+
+                called = true;
+                callback(new Error('Request timeout.'));
+            },
+            10000
+        );
+
+        return (...args) => {
+            if (called) {
+                return;
+            }
+
+            called = true;
+            clearTimeout(interval);
+
+            callback(...args);
+        };
+    }
+
+    _request(socket : Socket, method : string, data = {}) {
+        return new Promise((resolve, reject) => {
+            socket.emit(
+                'request',
+                {method, data},
+                this._timeoutCallback((err, response) => {
+                    if (err) {
+                        reject(err);
+                    }
+                    else {
+                        resolve(response);
+                    }
+                })
+            )
+        })
+    }
+
+    _notify(socket : Socket, method : string, data = {}) {
+        socket.emit('notify', { method, data });
     }
 }

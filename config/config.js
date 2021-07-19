@@ -83,7 +83,7 @@ module.exports =
                     listenIps :
                         [
                             {
-                                ip          : process.env.MEDIASOUP_LISTEN_IP || '172.20.10.10',
+                                ip          : process.env.MEDIASOUP_LISTEN_IP || '192.168.0.6',
                                 announcedIp : process.env.MEDIASOUP_ANNOUNCED_IP
                             }
                         ],
@@ -93,5 +93,13 @@ module.exports =
                     // Additional options that are not part of WebRtcTransportOptions.
                     maxIncomingBitrate              : 1500000
                 },
+        },
+    https :
+        {
+            tls :
+                {
+                    cert : process.env.HTTPS_CERT_FULLCHAIN || `${__dirname}/certs/server.pem`,
+                    key  : process.env.HTTPS_CERT_PRIVKEY || `${__dirname}/certs/server.key`
+                }
         }
 }

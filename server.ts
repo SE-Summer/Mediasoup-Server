@@ -3,6 +3,8 @@ const mediasoup = require('mediasoup');
 const express = require('express');
 const config = require('./config/config.js')
 const protoo = require('protoo-server');
+const https = require('https');
+const fs = require('fs');
 
 let app = express();
 
@@ -12,10 +14,11 @@ let producerTransport;
 let consumerTransport;
 let producer;
 let consumer;
-// let protooServer;
-// let peer;
-// let protooRoom;
-// let protooTransport;
+let protooServer;
+let peer;
+let protooRoom;
+let protooTransport;
+// let httpsServer;
 
 mediasoup.createWorker(
     config.mediasoup.workerSettings
@@ -143,29 +146,12 @@ app.post(
     }
 )
 
-
-// protooServer = new protoo.WebSocketServer(app,
-//     {
-//         maxReceivedFrameSize     : 960000, // 960 KBytes.
-//         maxReceivedMessageSize   : 960000,
-//         fragmentOutgoingMessages : true,
-//         fragmentationThreshold   : 960000
-//     });
-//
-// protooServer.on('connectionrequest', (info, accept, reject) => {
-//     protooTransport =  accept();
-//     handleProtooConnection();
-// })
-//
-// function handleProtooConnection() {
-//     protooRoom = new protoo.Room();
-//
-//     peer = protooRoom.createPeer(1,protooTransport);
-//
-//     peer.on('request', (request, accept, reject) => {
-//         handleProtooRequest(peer, request, accept, reject);
-//     })
+// const tls = {
+//     cert : fs.readFileSync(config.https.tls.cert),
+//     key : fs.readFileSync(config.tls.key)
 // }
+//
+// httpsServer = https.createServer(tls, app);
 
 var server = app.listen(4443, function (){
     var host = server.address().address
@@ -174,22 +160,109 @@ var server = app.listen(4443, function (){
     console.log("应用实例，访问地址为 http://%s:%s", host, port)
 })
 
-// async function handleProtooRequest (peer, request, accept, reject)
-// {
-//     switch (request.method)
-//     {
-//         case 'produce':
-//         {
-//             const {kind, rtpParameters} = request.data;
-//             let {appData} = request.data;
-//             console.log(appData);
-//             producer = await producerTransport.produce(
-//                 {
-//                     kind,
-//                     rtpParameters,
-//                     appData
-//                 }
-//             );
-//         }
-//     }
-// }
+protooServer = new protoo.WebSocketServer(app,
+    {
+        maxReceivedFrameSize     : 960000, // 960 KBytes.
+        maxReceivedMessageSize   : 960000,
+        fragmentOutgoingMessages : true,
+        fragmentationThreshold   : 960000
+    });
+
+protooServer.on('connectionrequest', (info, accept, reject) => {
+    protooTransport =  accept();
+    handleProtooConnection();
+})
+
+function handleProtooConnection() {
+    protooRoom = new protoo.Room();
+
+    peer = protooRoom.createPeer(1,protooTransport);
+
+    peer.on('request', (request, accept, reject) => {
+        handleProtooRequest(peer, request, accept, reject).then((res) => {
+            accept(res);
+        })
+    })
+}
+
+async function handleProtooRequest (peer, request, accept, reject)
+{
+    switch (request.method)
+    {
+        case 'getRouterRtpCapabilities' :
+        {
+          accept(myRouter.rtpCapabilities);
+          break;
+        }
+        case 'join' :
+        {
+            const {
+                rtpCapabilities,
+                sctpCapabilities
+            } = request.data;
+
+            peer.data.rtpCapabilities = rtpCapabilities;
+            peer.data.sctpCapabilities = sctpCapabilities;
+
+            break;
+        }
+        case 'createTransport':
+        {
+            const {transTag, sctpCapabilities} = request.data
+            let trans;
+            if (transTag === 'producer') {
+                trans = producerTransport;
+            } else {
+                trans = consumerTransport;
+            }
+            trans = await myRouter.createWebRtcTransport({
+                ...config.mediasoup.webRtcTransportOptions,
+                enableSctp: Boolean(sctpCapabilities),
+                numSctpStreams: (sctpCapabilities || {}).numStreams
+            })
+            accept({
+                id             : trans.id,
+                iceParameters  : trans.iceParameters,
+                iceCandidates  : trans.iceCandidates,
+                dtlsParameters : trans.dtlsParameters,
+                sctpParameters : trans.sctpParameters
+            });
+
+            break;
+        }
+        case 'connectTransport' :
+        {
+            const {transTag, dtlsParameters } = request.data;
+            console.log('[Connect]')
+            console.log(request.body)
+            if (transTag === 'producer') {
+                await producerTransport.connect({dtlsParameters});
+            } else {
+                await consumerTransport.connect({dtlsParameters});
+            }
+            accept();
+            break;
+        }
+        case 'produce':
+        {
+            const {kind, rtpParameters} = request.data;
+            let {appData} = request.data;
+
+            console.log(appData);
+            producer = await producerTransport.produce(
+                {
+                    kind,
+                    rtpParameters,
+                    appData
+                }
+            );
+            accept({id : producer.id});
+
+            consumer = await consumerTransport.consume({
+                producerId : producer.id,
+                rtpCapabilities : peer.data.rtpCapabilities,
+                pause : false
+            })
+        }
+    }
+}

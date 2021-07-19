@@ -1,7 +1,9 @@
 import {EventEmitter} from 'events';
 import {types as MTypes} from 'mediasoup';
 
-export interface Peer extends EventEmitter{
+export interface Peer{
+
+    //region Getter
 
     /**
      * @function getXXX
@@ -18,6 +20,24 @@ export interface Peer extends EventEmitter{
     getDataProducer (producerID : string);
 
     getDataConsumer (consumerID : string);
+
+    /**
+     * @return peerInfo:
+     * {
+     *          id,
+     *          roonID,
+     *          displayName,
+     *          joined,
+     *          device,
+     *          rtpCapabilites
+     *          }
+     *
+     */
+    getPeerInfo ();
+
+    //endregion
+
+    //region setter
 
     /**
      * @function setXXX
@@ -37,6 +57,22 @@ export interface Peer extends EventEmitter{
     setDataConsumer (consumerID: string, dataConsumer : MTypes.DataConsumer);
 
     /**
+     * @param displayName
+     * @param joined
+     * @param device
+     * @param rtpCapablities
+     */
+    setPeerInfo ({
+                     displayName,
+                     joined,
+                     device,
+                     rtpCapablities
+    });
+    //endregion
+
+    //region deleter
+
+    /**
      * @function deleteXXX
      * @param XXXID
      * @return boolean : true if success, false if failed
@@ -51,4 +87,8 @@ export interface Peer extends EventEmitter{
     deleteDataProducer (producerID : string);
 
     deleteDataConsumer (consumerID : string);
+
+    //endregion
+
+
 }

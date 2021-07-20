@@ -4,6 +4,7 @@ import {RequestMethod} from "./global";
 import {Socket} from "socket.io";
 import {response} from "express";
 import {types as MTypes} from 'mediasoup';
+import {Consumer} from "mediasoup/lib/Consumer";
 
 const EventEmitter = require('events').EventEmitter;
 const config = require('../config/config')
@@ -308,25 +309,91 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.closeProducer :
             {
+                const {producerId} = request.data;
+                const producer = peer.getProducer(producerId);
+
+                if (!producer) {
+                    let error = `producer with id "${producerId}" not found`;
+                    console.log(error);
+                    callback(error, {});
+                }
+
+                console.log('close producer, peer id : %s, producer id : %s', peer.id, producerId);
+
+                producer.close();
+                peer.deleteProducer(producer.id);
+                callback();
                 break;
             }
             case RequestMethod.pauseProducer :
             {
+                const {producerId} = request.data;
+                const producer = peer.getProducer(producerId);
+
+                if (!producer) {
+                    let error = `producer with id "${producerId}" not found`;
+                    console.log(error);
+                    callback(error, {});
+                }
+
+                console.log('pause producer, peer id : %s, producer id : %s', peer.id, producerId);
+
+                await producer.pause();
+                callback();
                 break;
             }
             case RequestMethod.resumeProducer :
             {
+                const {producerId} = request.data;
+                const producer = peer.getProducer(producerId);
+
+                if (!producer) {
+                    let error = `producer with id "${producerId}" not found`;
+                    console.log(error);
+                    callback(error, {});
+                }
+
+                console.log('resume producer, peer id : %s, producer id : %s', peer.id, producerId);
+
+                await producer.resume();
+                callback();
                 break;
             }
             case RequestMethod.pauseConsumer :
             {
-                break;
+                const { consumerId } = request.data;
+                const consumer = peer.getConsumer(consumerId);
 
+                if (!consumer){
+                    let error = `consumer with id "${consumerId}" not found`;
+                    console.log(error);
+                    callback(error, {});
+                }
+
+                console.log('pause consumer, peer id : %s, consumer id : %s', peer.id, consumerId);
+
+                await consumer.pause();
+
+                callback();
+                break;
             }
             case RequestMethod.resumeConsumer :
             {
-                break;
+                const { consumerId } = request.data;
+                const consumer = peer.getConsumer(consumerId);
 
+                if (!consumer){
+                    let error = `consumer with id "${consumerId}" not found`;
+                    console.log(error);
+                    callback(error, {});
+                }
+
+                console.log('resume consumer, peer id : %s, consumer id : %s', peer.id, consumerId);
+
+                await consumer.resume();
+
+                callback();
+                break;
             }
             default :
             {

@@ -13,7 +13,7 @@ const config = require('../config/config')
 export class Room extends EventEmitter{
     static async create({ worker, roomId })
     {
-        //logger.info('create() [roomId:%s]', roomId);
+        console.log('[Creating Room] roomId:%s', roomId);
 
         const { mediaCodecs } = config.mediasoup.routerOptions;
 
@@ -49,88 +49,87 @@ export class Room extends EventEmitter{
 
     _getJoinedPeers({ excludePeer = undefined } = {})
     {
-        return this._peers
-            .filter((peer) => peer !== excludePeer);
+        return this._peers.map
     }
-
-    async createTransport({peerId,sctpCapabilities}) {
-
-        const webRtcTransportOptions =
-            {
-                ...config.mediasoup.webRtcTransportOptions,
-                enableSctp     : Boolean(sctpCapabilities),
-                numSctpStreams : (sctpCapabilities || {}).numStreams
-            };
-
-        const peer = this._peers.get(peerId)
-
-        const transport = await this._router.createWebRtcTransport(
-            webRtcTransportOptions);
-
-        peer.setTransport(transport.id, transport)
-
-        return {
-            id             : transport.id,
-            iceParameters  : transport.iceParameters,
-            iceCandidates  : transport.iceCandidates,
-            dtlsParameters : transport.dtlsParameters,
-            sctpParameters : transport.sctpParameters
-        };
-    }
-
-    async connectTransport({peerId, transportId, dtlsParameters}) {
-        const peer = this._peers.get(peerId);
-        if (!peer)
-            throw new Error(`peer with id "${peerId}" does not exist`);
-
-        const transport = peer.getTransport(transportId);
-        if (!transport)
-            throw new Error(`transport with id "${transportId}" does not exist`);
-
-        await transport.connect({ dtlsParameters });
-    }
-
-    async createProducer({peerId, transportId, kind, rtpParameters}) {
-        const peer = this._peers.get(peerId);
-        if (!peer)
-            throw new Error(`peer with id "${peerId}" does not exist`);
-
-        const transport = peer.getTransport(transportId);
-        if (!transport)
-            throw new Error(`transport with id "${transportId}" does not exist`);
-
-        const producer =
-            await transport.produce({ kind, rtpParameters });
-
-        // Store it.
-        peer.setProducer(producer.id, producer);
-
-        // producer.on('videoorientationchange', (videoOrientation) =>
-        // {
-        //     logger.debug(
-        //         'broadcaster producer "videoorientationchange" event [producerId:%s, videoOrientation:%o]',
-        //         producer.id, videoOrientation);
-        // });
-
-        // Optimization: Create a server-side Consumer for each Peer.
-        // for (const peer of this._getJoinedPeers())
-        // {
-        //     this._createConsumer(
-        //         {
-        //             consumerPeer : peer,
-        //             producerPeer : broadcaster,
-        //             producer
-        //         });
-        // }
-
-        // Add into the audioLevelObserver.
-        // if (producer.kind === 'audio')
-        // {
-        //     this._audioLevelObserver.addProducer({ producerId: producer.id })
-        //         .catch(() => {});
-        // }
-        return { id: producer.id };
-    }
+    //
+    // async createTransport({peerId,sctpCapabilities}) {
+    //
+    //     const webRtcTransportOptions =
+    //         {
+    //             ...config.mediasoup.webRtcTransportOptions,
+    //             enableSctp     : Boolean(sctpCapabilities),
+    //             numSctpStreams : (sctpCapabilities || {}).numStreams
+    //         };
+    //
+    //     const peer = this._peers.get(peerId)
+    //
+    //     const transport = await this._router.createWebRtcTransport(
+    //         webRtcTransportOptions);
+    //
+    //     peer.setTransport(transport.id, transport)
+    //
+    //     return {
+    //         id             : transport.id,
+    //         iceParameters  : transport.iceParameters,
+    //         iceCandidates  : transport.iceCandidates,
+    //         dtlsParameters : transport.dtlsParameters,
+    //         sctpParameters : transport.sctpParameters
+    //     };
+    // }
+    //
+    // async connectTransport({peerId, transportId, dtlsParameters}) {
+    //     const peer = this._peers.get(peerId);
+    //     if (!peer)
+    //         throw new Error(`peer with id "${peerId}" does not exist`);
+    //
+    //     const transport = peer.getTransport(transportId);
+    //     if (!transport)
+    //         throw new Error(`transport with id "${transportId}" does not exist`);
+    //
+    //     await transport.connect({ dtlsParameters });
+    // }
+    //
+    // async createProducer({peerId, transportId, kind, rtpParameters}) {
+    //     const peer = this._peers.get(peerId);
+    //     if (!peer)
+    //         throw new Error(`peer with id "${peerId}" does not exist`);
+    //
+    //     const transport = peer.getTransport(transportId);
+    //     if (!transport)
+    //         throw new Error(`transport with id "${transportId}" does not exist`);
+    //
+    //     const producer =
+    //         await transport.produce({ kind, rtpParameters });
+    //
+    //     // Store it.
+    //     peer.setProducer(producer.id, producer);
+    //
+    //     // producer.on('videoorientationchange', (videoOrientation) =>
+    //     // {
+    //     //     logger.debug(
+    //     //         'broadcaster producer "videoorientationchange" event [producerId:%s, videoOrientation:%o]',
+    //     //         producer.id, videoOrientation);
+    //     // });
+    //
+    //     // Optimization: Create a server-side Consumer for each Peer.
+    //     // for (const peer of this._getJoinedPeers())
+    //     // {
+    //     //     this._createConsumer(
+    //     //         {
+    //     //             consumerPeer : peer,
+    //     //             producerPeer : broadcaster,
+    //     //             producer
+    //     //         });
+    //     // }
+    //
+    //     // Add into the audioLevelObserver.
+    //     // if (producer.kind === 'audio')
+    //     // {
+    //     //     this._audioLevelObserver.addProducer({ producerId: producer.id })
+    //     //         .catch(() => {});
+    //     // }
+    //     return { id: producer.id };
+    // }
 
     async createConsumer(consumerPeer : PeerImpl, producerPeer : PeerImpl, producer : MTypes.Producer) {
         if (!consumerPeer)
@@ -195,9 +194,7 @@ export class Room extends EventEmitter{
         switch (request.method) {
             case RequestMethod.getRouterRtpCapabilities :
             {
-                callback(null, {
-                    rtpCapabilities : this._router.rtpCapabilities
-                });
+                callback(null, this._router.rtpCapabilities);
                 break;
             }
             case RequestMethod.join :
@@ -230,7 +227,8 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.createTransport :
             {
-                const {transportType} = request.data
+                console.log("[Create Transport] peerId:%s", peer.id)
+                const {sctpCapabilities, transportType} = request.data
 
                 if (transportType !== 'consumer' && transportType !== 'producer') {
                     callback('transport type ERROR!', {sendType : transportType});
@@ -240,6 +238,8 @@ export class Room extends EventEmitter{
                 const webRtcTransportOptions =
                     {
                         ...config.mediasoup.webRtcTransportOptions,
+                        enableSctp     : Boolean(sctpCapabilities),
+                        numSctpStreams : (sctpCapabilities || {}).numStreams,
                         appData : {
                             transportType : transportType
                         }
@@ -261,16 +261,18 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.connectWebRtcTransport :
             {
+                console.log("[Connect Transport] peerId:%s", peer.id)
                 const {transportId, dtlsParameters} = request.data;
 
                 const transport = peer.getTransport(transportId);
-                await transport.connect(dtlsParameters);
+                await transport.connect({dtlsParameters});
 
                 callback(null, {});
                 break;
             }
-            case RequestMethod.consumer :
+            case RequestMethod.consume :
             {
+                console.log("[Consume] peerId:%s", peer.id)
                 const {subscribeId} = request.data;
 
                 const subscribedInfo = [];
@@ -285,6 +287,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.produce :
             {
+                console.log("[Produce] peerId:%s", peer.id)
                 const {transportId, kind, rtpParameters} = request.data;
                 let {appData} = request.data;
                 const transport = peer.getTransport(transportId);
@@ -301,10 +304,10 @@ export class Room extends EventEmitter{
                 peer.setProducer(producer.id, producer);
                 callback(null, {producerId : producer.id});
 
-                const joinedPeers = this._getJoinedPeers({excludePeer : peer});
-                joinedPeers.forEach((joinedPeer) => {
-                    this.createConsumer(joinedPeer, peer, producer);
-                })
+                // const joinedPeers = this._getJoinedPeers({excludePeer : peer});
+                // joinedPeers.forEach((joinedPeer) => {
+                //     this.createConsumer(joinedPeer, peer, producer);
+                // })
                 break;
             }
             case RequestMethod.closeProducer :

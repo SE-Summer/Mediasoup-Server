@@ -2,7 +2,6 @@ import {PeerImpl} from "./peerImpl";
 import {Peer} from './peer';
 import {RequestMethod} from "./global";
 import {Socket} from "socket.io";
-import {response} from "express";
 import {types as MTypes} from 'mediasoup';
 import {Consumer} from "mediasoup/lib/Consumer";
 
@@ -147,6 +146,23 @@ export class Room extends EventEmitter{
         // Store it.
         consumerPeer.setConsumer(consumer.id, consumer);
 
+        consumer.on('transportclose', () => {
+           consumerPeer.deleteConsumer(consumer.id);
+        });
+
+        consumer.on('producerclose', () => {
+            consumerPeer.deleteConsumer(consumer.id);
+            this._notify(consumerPeer.socket, 'consumerClosed', {consumerId : consumer.id});
+        });
+
+        consumer.on('producerpause', () => {
+            this._notify(consumerPeer.socket, 'consumerPaused', {consumerId : consumer.id});
+        })
+
+        consumer.on('producerresume', () => {
+            this._notify(consumerPeer.socket, 'consumerResumed', {consumerId : consumer.id});
+        })
+
         // Set Consumer events.
         // consumer.on('transport close', () =>
         // {
@@ -160,7 +176,7 @@ export class Room extends EventEmitter{
         //     peer.deleteConsumer(consumer.id);
         // });
 
-        this._notify(consumerPeer.socket, 'newProducer', {
+        this._notify(consumerPeer.socket, 'newPeer', {
             producerPeerId : producerPeer.id,
             kind : producer.kind,
             producerId : producer.id,
@@ -181,7 +197,7 @@ export class Room extends EventEmitter{
     handleConnection(peerId, socket){
         this._peers.set(peerId, new PeerImpl(peerId, socket))
         socket.on('request', (request, callback) => {
-            this._handleRequest(this.peers.get(peerId), request, callback)
+            this._handleRequest(this._peers.get(peerId), request, callback)
                 .catch((error) => {
                     console.log('"request failed [error:"%o"]"', error);
 

@@ -179,8 +179,15 @@ export class Room extends EventEmitter{
     }
 
     handleConnection(peerId, socket){
-        //socket.on('request', )
         this._peers.set(peerId, new PeerImpl(peerId, socket))
+        socket.on('request', (request, callback) => {
+            this._handleRequest(this.peers.get(peerId), request, callback)
+                .catch((error) => {
+                    console.log('"request failed [error:"%o"]"', error);
+
+                    callback(error, {});
+                })
+        })
     }
 
     private async _handleRequest(peer : PeerImpl, request, callback) {

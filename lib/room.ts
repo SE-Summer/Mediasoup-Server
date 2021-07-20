@@ -4,6 +4,7 @@ import {RequestMethod} from "./global";
 import {Socket} from "socket.io";
 import {response} from "express";
 import {types as MTypes} from 'mediasoup';
+import {Consumer} from "mediasoup/lib/Consumer";
 
 const EventEmitter = require('events').EventEmitter;
 const config = require('../config/config')
@@ -179,12 +180,11 @@ export class Room extends EventEmitter{
 
     handleConnection(peerId, socket){
         this._peers.set(peerId, new PeerImpl(peerId, socket))
-        console.log("[New Peer] peerId:%s", peerId)
-        console.log("[PeerList]", this._peers.keys())
         socket.on('request', (request, callback) => {
-            this._handleRequest(this._peers.get(peerId), request, callback)
+            this._handleRequest(this.peers.get(peerId), request, callback)
                 .catch((error) => {
                     console.log('"request failed [error:"%o"]"', error);
+
                     callback(error, {});
                 })
         })
@@ -362,9 +362,41 @@ export class Room extends EventEmitter{
                 callback();
                 break;
             }
-            case RequestMethod.pauseConsumer : {
-                const {consumerId} = request.data;
+            case RequestMethod.pauseConsumer :
+            {
+                const { consumerId } = request.data;
                 const consumer = peer.getConsumer(consumerId);
+
+                if (!consumer){
+                    let error = `consumer with id "${consumerId}" not found`;
+                    console.log(error);
+                    callback(error, {});
+                }
+
+                console.log('pause consumer, peer id : %s, consumer id : %s', peer.id, consumerId);
+
+                await consumer.pause();
+
+                callback();
+                break;
+            }
+            case RequestMethod.resumeConsumer :
+            {
+                const { consumerId } = request.data;
+                const consumer = peer.getConsumer(consumerId);
+
+                if (!consumer){
+                    let error = `consumer with id "${consumerId}" not found`;
+                    console.log(error);
+                    callback(error, {});
+                }
+
+                console.log('resume consumer, peer id : %s, consumer id : %s', peer.id, consumerId);
+
+                await consumer.resume();
+
+                callback();
+                break;
             }
             default :
             {

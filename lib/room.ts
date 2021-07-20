@@ -1,11 +1,13 @@
 import {PeerImpl} from "./peerImpl";
-const EventEmitter = require('events').EventEmitter;
 import {Peer} from './peer';
-const config = require('../config/config')
 import {RequestMethod} from "./global";
 import {Socket} from "socket.io";
 import {response} from "express";
 import {types as MTypes} from 'mediasoup';
+
+const EventEmitter = require('events').EventEmitter;
+const config = require('../config/config')
+
 
 export class Room extends EventEmitter{
     static async create({ worker, roomId })

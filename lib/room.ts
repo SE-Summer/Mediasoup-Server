@@ -48,88 +48,87 @@ export class Room extends EventEmitter{
 
     _getJoinedPeers({ excludePeer = undefined } = {})
     {
-        return this._peers
-            .filter((peer) => peer !== excludePeer);
+        return this._peers.map
     }
-
-    async createTransport({peerId,sctpCapabilities}) {
-
-        const webRtcTransportOptions =
-            {
-                ...config.mediasoup.webRtcTransportOptions,
-                enableSctp     : Boolean(sctpCapabilities),
-                numSctpStreams : (sctpCapabilities || {}).numStreams
-            };
-
-        const peer = this._peers.get(peerId)
-
-        const transport = await this._router.createWebRtcTransport(
-            webRtcTransportOptions);
-
-        peer.setTransport(transport.id, transport)
-
-        return {
-            id             : transport.id,
-            iceParameters  : transport.iceParameters,
-            iceCandidates  : transport.iceCandidates,
-            dtlsParameters : transport.dtlsParameters,
-            sctpParameters : transport.sctpParameters
-        };
-    }
-
-    async connectTransport({peerId, transportId, dtlsParameters}) {
-        const peer = this._peers.get(peerId);
-        if (!peer)
-            throw new Error(`peer with id "${peerId}" does not exist`);
-
-        const transport = peer.getTransport(transportId);
-        if (!transport)
-            throw new Error(`transport with id "${transportId}" does not exist`);
-
-        await transport.connect({ dtlsParameters });
-    }
-
-    async createProducer({peerId, transportId, kind, rtpParameters}) {
-        const peer = this._peers.get(peerId);
-        if (!peer)
-            throw new Error(`peer with id "${peerId}" does not exist`);
-
-        const transport = peer.getTransport(transportId);
-        if (!transport)
-            throw new Error(`transport with id "${transportId}" does not exist`);
-
-        const producer =
-            await transport.produce({ kind, rtpParameters });
-
-        // Store it.
-        peer.setProducer(producer.id, producer);
-
-        // producer.on('videoorientationchange', (videoOrientation) =>
-        // {
-        //     logger.debug(
-        //         'broadcaster producer "videoorientationchange" event [producerId:%s, videoOrientation:%o]',
-        //         producer.id, videoOrientation);
-        // });
-
-        // Optimization: Create a server-side Consumer for each Peer.
-        // for (const peer of this._getJoinedPeers())
-        // {
-        //     this._createConsumer(
-        //         {
-        //             consumerPeer : peer,
-        //             producerPeer : broadcaster,
-        //             producer
-        //         });
-        // }
-
-        // Add into the audioLevelObserver.
-        // if (producer.kind === 'audio')
-        // {
-        //     this._audioLevelObserver.addProducer({ producerId: producer.id })
-        //         .catch(() => {});
-        // }
-        return { id: producer.id };
-    }
+    //
+    // async createTransport({peerId,sctpCapabilities}) {
+    //
+    //     const webRtcTransportOptions =
+    //         {
+    //             ...config.mediasoup.webRtcTransportOptions,
+    //             enableSctp     : Boolean(sctpCapabilities),
+    //             numSctpStreams : (sctpCapabilities || {}).numStreams
+    //         };
+    //
+    //     const peer = this._peers.get(peerId)
+    //
+    //     const transport = await this._router.createWebRtcTransport(
+    //         webRtcTransportOptions);
+    //
+    //     peer.setTransport(transport.id, transport)
+    //
+    //     return {
+    //         id             : transport.id,
+    //         iceParameters  : transport.iceParameters,
+    //         iceCandidates  : transport.iceCandidates,
+    //         dtlsParameters : transport.dtlsParameters,
+    //         sctpParameters : transport.sctpParameters
+    //     };
+    // }
+    //
+    // async connectTransport({peerId, transportId, dtlsParameters}) {
+    //     const peer = this._peers.get(peerId);
+    //     if (!peer)
+    //         throw new Error(`peer with id "${peerId}" does not exist`);
+    //
+    //     const transport = peer.getTransport(transportId);
+    //     if (!transport)
+    //         throw new Error(`transport with id "${transportId}" does not exist`);
+    //
+    //     await transport.connect({ dtlsParameters });
+    // }
+    //
+    // async createProducer({peerId, transportId, kind, rtpParameters}) {
+    //     const peer = this._peers.get(peerId);
+    //     if (!peer)
+    //         throw new Error(`peer with id "${peerId}" does not exist`);
+    //
+    //     const transport = peer.getTransport(transportId);
+    //     if (!transport)
+    //         throw new Error(`transport with id "${transportId}" does not exist`);
+    //
+    //     const producer =
+    //         await transport.produce({ kind, rtpParameters });
+    //
+    //     // Store it.
+    //     peer.setProducer(producer.id, producer);
+    //
+    //     // producer.on('videoorientationchange', (videoOrientation) =>
+    //     // {
+    //     //     logger.debug(
+    //     //         'broadcaster producer "videoorientationchange" event [producerId:%s, videoOrientation:%o]',
+    //     //         producer.id, videoOrientation);
+    //     // });
+    //
+    //     // Optimization: Create a server-side Consumer for each Peer.
+    //     // for (const peer of this._getJoinedPeers())
+    //     // {
+    //     //     this._createConsumer(
+    //     //         {
+    //     //             consumerPeer : peer,
+    //     //             producerPeer : broadcaster,
+    //     //             producer
+    //     //         });
+    //     // }
+    //
+    //     // Add into the audioLevelObserver.
+    //     // if (producer.kind === 'audio')
+    //     // {
+    //     //     this._audioLevelObserver.addProducer({ producerId: producer.id })
+    //     //         .catch(() => {});
+    //     // }
+    //     return { id: producer.id };
+    // }
 
     async createConsumer(consumerPeer : PeerImpl, producerPeer : PeerImpl, producer : MTypes.Producer) {
         if (!consumerPeer)
@@ -266,7 +265,7 @@ export class Room extends EventEmitter{
                 const {transportId, dtlsParameters} = request.data;
 
                 const transport = peer.getTransport(transportId);
-                await transport.connect(dtlsParameters);
+                await transport.connect({dtlsParameters});
 
                 callback(null, {});
                 break;
@@ -305,33 +304,67 @@ export class Room extends EventEmitter{
                 peer.setProducer(producer.id, producer);
                 callback(null, {producerId : producer.id});
 
-                const joinedPeers = this._getJoinedPeers({excludePeer : peer});
-                joinedPeers.forEach((joinedPeer) => {
-                    this.createConsumer(joinedPeer, peer, producer);
-                })
+                // const joinedPeers = this._getJoinedPeers({excludePeer : peer});
+                // joinedPeers.forEach((joinedPeer) => {
+                //     this.createConsumer(joinedPeer, peer, producer);
+                // })
                 break;
             }
             case RequestMethod.closeProducer :
             {
+                const {producerId} = request.data;
+                const producer = peer.getProducer(producerId);
+
+                if (!producer) {
+                    let error = `producer with id "${producerId}" not found`;
+                    console.log(error);
+                    callback(error, {});
+                }
+
+                console.log('close producer, peer id : %s, producer id : %s', peer.id, producerId);
+
+                producer.close();
+                peer.deleteProducer(producer.id);
+                callback();
                 break;
             }
             case RequestMethod.pauseProducer :
             {
+                const {producerId} = request.data;
+                const producer = peer.getProducer(producerId);
+
+                if (!producer) {
+                    let error = `producer with id "${producerId}" not found`;
+                    console.log(error);
+                    callback(error, {});
+                }
+
+                console.log('pause producer, peer id : %s, producer id : %s', peer.id, producerId);
+
+                await producer.pause();
+                callback();
                 break;
             }
             case RequestMethod.resumeProducer :
             {
+                const {producerId} = request.data;
+                const producer = peer.getProducer(producerId);
+
+                if (!producer) {
+                    let error = `producer with id "${producerId}" not found`;
+                    console.log(error);
+                    callback(error, {});
+                }
+
+                console.log('resume producer, peer id : %s, producer id : %s', peer.id, producerId);
+
+                await producer.resume();
+                callback();
                 break;
             }
-            case RequestMethod.pauseConsumer :
-            {
-                break;
-
-            }
-            case RequestMethod.resumeConsumer :
-            {
-                break;
-
+            case RequestMethod.pauseConsumer : {
+                const {consumerId} = request.data;
+                const consumer = peer.getConsumer(consumerId);
             }
             default :
             {

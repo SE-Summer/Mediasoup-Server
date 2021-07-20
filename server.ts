@@ -1,11 +1,26 @@
 import {createServer} from "http"
 import {Server} from "socket.io"
 import {Room} from "./lib/room"
+import {DB} from "./mysql/mysql"
 
 const express = require("express")
 const mediasoup = require('mediasoup');
 const config = require('./config/config.js')
 const app = express();
+const mysqlDB = new DB();
+
+app.get(
+    '/users',
+    async (req, res)=>{
+        let users = await mysqlDB.getUsers();
+        console.log(users);
+        await res.status(200).json({
+            "users": users
+        })
+    }
+)
+
+
 const httpServer = createServer(app);
 
 let worker;
@@ -30,7 +45,6 @@ io.of('/room').on("connection", async (socket)=>{
     const room = await getOrCreateRoom({roomId})
     room.handleConnection(peerId, socket)
 })
-
 
 httpServer.listen(4444, function () { console.log('Listening on port 4444') })
 

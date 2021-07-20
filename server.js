@@ -39,10 +39,29 @@ exports.__esModule = true;
 var http_1 = require("http");
 var socket_io_1 = require("socket.io");
 var room_1 = require("./lib/room");
+var mysql_1 = require("./mysql/mysql");
 var express = require("express");
 var mediasoup = require('mediasoup');
 var config = require('./config/config.js');
 var app = express();
+var mysqlDB = new mysql_1.DB();
+app.get('/users', function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    var users;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0: return [4 /*yield*/, mysqlDB.getUsers()];
+            case 1:
+                users = _a.sent();
+                console.log(users);
+                return [4 /*yield*/, res.status(200).json({
+                        "users": users
+                    })];
+            case 2:
+                _a.sent();
+                return [2 /*return*/];
+        }
+    });
+}); });
 var httpServer = http_1.createServer(app);
 var worker;
 mediasoup.createWorker({

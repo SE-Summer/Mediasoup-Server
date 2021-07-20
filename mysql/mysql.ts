@@ -1,19 +1,30 @@
+//import {mysql} from "mysql"
+const mysql = require("mysql")
 
-import {mysql} from "mysql"
+export class DB {
+    private _connection;
 
-class DB {
-    _connection
-
-    init(){
-        const mysql = require("mysql")
-
+    constructor() {
         this._connection = mysql.createConnection({
-                host: 'localhost',
-                user: 'root',
-                password: '655566',
-                database: 'test'
-            });
+            host: 'localhost',
+            user: 'root',
+            password: '655566',
+            database: 'test'
+        });
 
         this._connection.connect();
+    }
+
+    async getUsers(){
+        this._connection.query(
+            'select * from users',
+            (err, rows)=>{
+                if(err){
+                    console.log('[SQL SELECT ERROR] ', err.message);
+                    return;
+                }
+
+            }
+        )
     }
 }

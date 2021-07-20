@@ -12,7 +12,7 @@ const config = require('../config/config')
 export class Room extends EventEmitter{
     static async create({ worker, roomId })
     {
-        //logger.info('create() [roomId:%s]', roomId);
+        console.log('[Creating Room] roomId:%s', roomId);
 
         const { mediaCodecs } = config.mediasoup.routerOptions;
 
@@ -179,17 +179,23 @@ export class Room extends EventEmitter{
     }
 
     handleConnection(peerId, socket){
-        //socket.on('request', )
         this._peers.set(peerId, new PeerImpl(peerId, socket))
+        console.log("[New Peer] peerId:%s", peerId)
+        console.log("[PeerList]", this._peers.keys())
+        socket.on('request', (request, callback) => {
+            this._handleRequest(this._peers.get(peerId), request, callback)
+                .catch((error) => {
+                    console.log('"request failed [error:"%o"]"', error);
+                    callback(error, {});
+                })
+        })
     }
 
     private async _handleRequest(peer : PeerImpl, request, callback) {
         switch (request.method) {
             case RequestMethod.getRouterRtpCapabilities :
             {
-                callback(null, {
-                    rtpCapabilities : this._router.rtpCapabilities
-                });
+                callback(null, this._router.rtpCapabilities);
                 break;
             }
             case RequestMethod.join :
@@ -222,7 +228,8 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.createTransport :
             {
-                const {transportType} = request.data
+                console.log("[Create Transport] peerId:%s", peer.id)
+                const {sctpCapabilities, transportType} = request.data
 
                 if (transportType !== 'consumer' && transportType !== 'producer') {
                     callback('transport type ERROR!', {sendType : transportType});
@@ -232,6 +239,8 @@ export class Room extends EventEmitter{
                 const webRtcTransportOptions =
                     {
                         ...config.mediasoup.webRtcTransportOptions,
+                        enableSctp     : Boolean(sctpCapabilities),
+                        numSctpStreams : (sctpCapabilities || {}).numStreams,
                         appData : {
                             transportType : transportType
                         }
@@ -253,6 +262,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.connectWebRtcTransport :
             {
+                console.log("[Connect Transport] peerId:%s", peer.id)
                 const {transportId, dtlsParameters} = request.data;
 
                 const transport = peer.getTransport(transportId);
@@ -261,8 +271,9 @@ export class Room extends EventEmitter{
                 callback(null, {});
                 break;
             }
-            case RequestMethod.consumer :
+            case RequestMethod.consume :
             {
+                console.log("[Consume] peerId:%s", peer.id)
                 const {subscribeId} = request.data;
 
                 const subscribedInfo = [];
@@ -277,6 +288,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.produce :
             {
+                console.log("[Produce] peerId:%s", peer.id)
                 const {transportId, kind, rtpParameters} = request.data;
                 let {appData} = request.data;
                 const transport = peer.getTransport(transportId);

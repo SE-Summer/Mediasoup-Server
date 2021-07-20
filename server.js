@@ -69,7 +69,7 @@ io.of('/room').on("connection", function (socket) { return __awaiter(void 0, voi
         }
     });
 }); });
-httpServer.listen(4444, function () { console.log('Listening on port 4444'); });
+httpServer.listen(4446, function () { console.log('Listening on port 4442'); });
 function getOrCreateRoom(_a) {
     var roomId = _a.roomId;
     return __awaiter(this, void 0, void 0, function () {

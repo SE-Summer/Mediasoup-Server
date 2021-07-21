@@ -37,15 +37,33 @@ app.post(
     '/register',
     (req, res)=>{
         console.log(req.body);
-        const {email, password, nickname} = req.body
-        mysqlDB.register(email, password, nickname, (err, rows)=>{
+        const {email, nickname, password, verify} = req.body
+        mysqlDB.register(email, verify, nickname, password, (err, user)=>{
             if (err){
                 res.status(401).json({
                     "error": err
                 })
             }else{
                 res.status(200).json({
-                    "users": rows[0]
+                    "status": "OK"
+                })
+            }
+        });
+    }
+)
+
+app.post(
+    '/verify',
+    (req, res)=>{
+        console.log(req.body);
+        const {email} = req.body
+        mysqlDB.verify(email, (err, ok)=>{
+            if (err){
+                res.status(401).json({
+                    "error": err
+                })
+            }else{
+                res.status(200).json({
                 })
             }
         });

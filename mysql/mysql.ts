@@ -1,6 +1,7 @@
 //import {mysql} from "mysql"
 const mysql = require("mysql")
 const moment = require('moment');
+import {sendMail} from './send-email'
 
 const randomString = require("string-random")
 
@@ -46,16 +47,65 @@ export class DB {
         )
     }
 
-    register(email, nickname, password, callback){
-        const queryString = 'insert into users set email="'+email+'",password="'+password+'",nickname="'+nickname+'"'
+    register(email, verify, nickname, password, callback){
+        const queryString = 'select * from users where email="'+email + '"';
         this._connection.query(
             queryString,
             (err, rows)=>{
                 if(err){
                     console.log('[SQL_INSERT_ERROR] ', err.message);
-                    callback("EAAE", null)
+                    callback("SIE", null)
                 }else{
-                    callback(null, rows)
+                    const user = rows[0];
+                    if (verify !== user.verify){
+                        callback("WVC", null)
+                    }else{
+                        const queryString2 = 'update users set password="'+password+'",nickname="'+nickname+'",verify=null where email="'+email+'"';
+                        this._connection.query(
+                            queryString2,
+                            (err, ok)=>{
+                                if(err){
+                                    console.log('[SQL_UPDATE_ERROR] ', err.message);
+                                    callback("SUE", null)
+                                }else{
+                                    callback(null, user)
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        )
+    }
+
+    verify(email, callback){
+        const verify = randomString(6);
+        const queryString = 'insert into users set email="'+email+'",verify="'+verify+'"';
+        sendMail(email, verify, (succ)=>{
+            if (succ){
+                console.log("Email Send: ", verify);
+            }else{
+                console.log("Email Send Failed!")
+            }
+        })
+        this._connection.query(
+            queryString,
+            (err, ok)=>{
+                if(err){
+                    const queryString = 'update users set verify="'+verify+'" where email="'+email+'"';
+                    this._connection.query(
+                        queryString,
+                        (err, ok)=>{
+                            if(err){
+                                console.log('[SQL_UPDATE_ERROR] ', err.message);
+                                callback("SUE", null)
+                            }else{
+                                callback(null, ok)
+                            }
+                        }
+                    )
+                }else{
+                    callback(null, ok)
                 }
             }
         )

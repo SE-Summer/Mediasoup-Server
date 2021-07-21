@@ -62,8 +62,8 @@ app.get('/rooms', function (req, res) {
 });
 app.post('/register', function (req, res) {
     console.log(req.body);
-    var _a = req.body, email = _a.email, password = _a.password, nickname = _a.nickname;
-    mysqlDB.register(email, password, nickname, function (err, rows) {
+    var _a = req.body, email = _a.email, nickname = _a.nickname, password = _a.password, verify = _a.verify;
+    mysqlDB.register(email, verify, nickname, password, function (err, user) {
         if (err) {
             res.status(401).json({
                 "error": err
@@ -71,8 +71,22 @@ app.post('/register', function (req, res) {
         }
         else {
             res.status(200).json({
-                "users": rows[0]
+                "status": "OK"
             });
+        }
+    });
+});
+app.post('/verify', function (req, res) {
+    console.log(req.body);
+    var email = req.body.email;
+    mysqlDB.verify(email, function (err, ok) {
+        if (err) {
+            res.status(401).json({
+                "error": err
+            });
+        }
+        else {
+            res.status(200).json({});
         }
     });
 });

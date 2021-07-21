@@ -4,6 +4,7 @@ exports.DB = void 0;
 //import {mysql} from "mysql"
 var mysql = require("mysql");
 var moment = require('moment');
+var send_email_1 = require("./send-email");
 var randomString = require("string-random");
 var DB = /** @class */ (function () {
     function DB() {
@@ -37,15 +38,61 @@ var DB = /** @class */ (function () {
             }
         });
     };
-    DB.prototype.register = function (email, nickname, password, callback) {
-        var queryString = 'insert into users set email="' + email + '",password="' + password + '",nickname="' + nickname + '"';
+    DB.prototype.register = function (email, verify, nickname, password, callback) {
+        var _this = this;
+        var queryString = 'select * from users where email="' + email + '"';
         this._connection.query(queryString, function (err, rows) {
             if (err) {
                 console.log('[SQL_INSERT_ERROR] ', err.message);
-                callback("EAAE", null);
+                callback("SIE", null);
             }
             else {
-                callback(null, rows);
+                var user_1 = rows[0];
+                if (verify !== user_1.verify) {
+                    callback("WVC", null);
+                }
+                else {
+                    var queryString2 = 'update users set password="' + password + '",nickname="' + nickname + '",verify=null where email="' + email + '"';
+                    _this._connection.query(queryString2, function (err, ok) {
+                        if (err) {
+                            console.log('[SQL_UPDATE_ERROR] ', err.message);
+                            callback("SUE", null);
+                        }
+                        else {
+                            callback(null, user_1);
+                        }
+                    });
+                }
+            }
+        });
+    };
+    DB.prototype.verify = function (email, callback) {
+        var _this = this;
+        var verify = randomString(6);
+        var queryString = 'insert into users set email="' + email + '",verify="' + verify + '"';
+        send_email_1.sendMail(email, verify, function (succ) {
+            if (succ) {
+                console.log("Email Send: ", verify);
+            }
+            else {
+                console.log("Email Send Failed!");
+            }
+        });
+        this._connection.query(queryString, function (err, ok) {
+            if (err) {
+                var queryString_1 = 'update users set verify="' + verify + '" where email="' + email + '"';
+                _this._connection.query(queryString_1, function (err, ok) {
+                    if (err) {
+                        console.log('[SQL_UPDATE_ERROR] ', err.message);
+                        callback("SUE", null);
+                    }
+                    else {
+                        callback(null, ok);
+                    }
+                });
+            }
+            else {
+                callback(null, ok);
             }
         });
     };

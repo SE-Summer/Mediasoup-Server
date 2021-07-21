@@ -1,7 +1,6 @@
 import {createServer} from "http"
 import {Server} from "socket.io"
 import {Room} from "./lib/room"
-import {DB} from "./mysql/mysql"
 
 const express = require("express")
 const mediasoup = require('mediasoup');

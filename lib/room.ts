@@ -137,11 +137,22 @@ export class Room extends EventEmitter{
     // }
 
     async createConsumer(consumerPeer : PeerImpl, producerPeer : PeerImpl, producer : MTypes.Producer) {
-        if (!consumerPeer)
+        if (!consumerPeer) {
             throw new Error(`peer with id "${consumerPeer.id}" does not exist`);
+        }
 
-        if (!consumerPeer.getPeerInfo().rtpCapabilities)
+        if (!consumerPeer.getPeerInfo().rtpCapabilities) {
             throw new Error('peer does not have rtpCapabilities');
+        }
+
+        if (!this._router.canConsume({
+            producerId : producer.id,
+            rtpCapabilities : consumerPeer.getPeerInfo().rtpCapabilities
+        })) {
+            throw new Error(`Can not consume peer : ${producerPeer.id} 's producer : ${producer.id} : `);
+        }
+
+        console.log(`create consumer of ${producerPeer.id} for ${consumerPeer.id}`);
 
         const consumer = await consumerPeer.getConsumerTransport().consume(
             {
@@ -149,7 +160,6 @@ export class Room extends EventEmitter{
                 rtpCapabilities : consumerPeer.getPeerInfo().rtpCapabilities
             });
 
-        // Store it.
         consumerPeer.setConsumer(consumer.id, consumer);
 
         consumer.on('transportclose', () => {
@@ -169,20 +179,7 @@ export class Room extends EventEmitter{
             this._notify(consumerPeer.socket, 'consumerResumed', {consumerId : consumer.id});
         })
 
-        // Set Consumer events.
-        // consumer.on('transport close', () =>
-        // {
-        //     // Remove from its map.
-        //     peer.deleteConsumer(consumer.id);
-        // });
-        //
-        // consumer.on('producer close', () =>
-        // {
-        //     // Remove from its map.
-        //     peer.deleteConsumer(consumer.id);
-        // });
-
-        this._notify(consumerPeer.socket, 'newPeer', {
+        this._notify(consumerPeer.socket, 'newConsumer', {
             producerPeerId : producerPeer.id,
             kind : producer.kind,
             producerId : producer.id,
@@ -201,15 +198,32 @@ export class Room extends EventEmitter{
     }
 
     handleConnection(peerId, socket){
-        this._peers.set(peerId, new PeerImpl(peerId, socket))
+        let peer = new PeerImpl(peerId, socket);
+
         socket.on('request', (request, callback) => {
-            this._handleRequest(this._peers.get(peerId), request, callback)
+            this._handleRequest(peer, request, callback)
                 .catch((error) => {
                     console.log('"request failed [error:"%o"]"', error);
 
                     callback(error, {});
                 })
         })
+
+        peer.on('close', () => {
+            if (this._closed) {
+                return;
+            }
+            this._notify(socket, 'peerClose', {
+                peerId : peerId
+            },true);
+            this._peers.delete(peerId);
+            peer.socket.leave(this._roomId);
+
+            if (this._peer.length === 0) {
+                this.close();
+            }
+        })
+
     }
 
     private async _handleRequest(peer : PeerImpl, request, callback) {
@@ -224,18 +238,38 @@ export class Room extends EventEmitter{
                 const {displayName, joined, device, rtpCapabilities} = request.data;
 
                 if (joined) {
-                    callback(null, {joined : true});
+                    callback('Client is already joined!',);
                     break;
                 }
 
                 peer.setPeerInfo({
                     displayName : displayName,
                     joined : true,
+                    closed : false,
                     device : device,
                     rtpCapabilities : rtpCapabilities
                 });
 
+                console.log('[peers]',this._peers.keys());
+
+                this._notify(peer.socket, 'newPeer', {
+                    id : peer.id,
+                    displayName : displayName,
+                    device : device
+                }, true);
+
+                peer.socket.join(this._roomId);
+                this._peers.set(peer.id, peer);
+
                 const joinedPeers = this._getJoinedPeers({excludePeer : peer});
+                const peerInfos = [];
+
+                joinedPeers.forEach((joinedPeer) => {
+                    peerInfos.push({
+                        id : joinedPeer.id,
+                        displayName : joinedPeer.displayName,
+                        device : joinedPeer.device
+                    });
 
                 const peerInfos = [];
                 joinedPeers.forEach((joinedPeer) => (peerInfos.push({
@@ -244,7 +278,7 @@ export class Room extends EventEmitter{
                     device : joinedPeer.device
                 })));
 
-                callback(null, {peerInfos});
+                callback(null, peerInfos);
 
                 break;
             }
@@ -254,6 +288,7 @@ export class Room extends EventEmitter{
                 console.log("[Create Transport] peerId:%s, type:%s", peer.id, transportType)
 
                 if (transportType !== 'consumer' && transportType !== 'producer') {
+                    callback('transport type ERROR!', {sendType : transportType});
                     callback('transport type ERROR!', {sendType : transportType});
                     break;
                 }
@@ -327,10 +362,10 @@ export class Room extends EventEmitter{
                 peer.setProducer(producer.id, producer);
                 callback(null, {producerId : producer.id});
 
-                // const joinedPeers = this._getJoinedPeers({excludePeer : peer});
-                // joinedPeers.forEach((joinedPeer) => {
-                //     this.createConsumer(joinedPeer, peer, producer);
-                // })
+                const joinedPeers = this._getJoinedPeers({excludePeer : peer});
+                joinedPeers.forEach((joinedPeer) => {
+                    this.createConsumer(joinedPeer, peer, producer);
+                })
                 break;
             }
             case RequestMethod.closeProducer :
@@ -421,9 +456,14 @@ export class Room extends EventEmitter{
                 callback();
                 break;
             }
+            case RequestMethod.close :
+            {
+                peer.close();
+                break;
+            }
             default :
             {
-
+                callback('Unknown Request!',);
             }
         }
     }
@@ -471,7 +511,27 @@ export class Room extends EventEmitter{
         })
     }
 
-    _notify(socket : Socket, method : string, data = {}) {
-        socket.emit('notify', { method, data });
+    _notify(socket : Socket, method : string, data = {}, broadcast = false) {
+        if (broadcast) {
+            socket.broadcast.to(this._roomId).emit(
+                'notify', {method, data}
+            );
+        } else
+            socket.emit('notify', {method, data});
+    }
+
+    close () {
+        console.log(`Room ${this._roomId} closed.`);
+        this._closed = true;
+
+        this._peers.forEach((peer) => {
+            if (!peer.getPeerInfo().closed) {
+                peer.close();
+            }
+        })
+
+        this._peers.clear();
+        this._router.close();
+        this.emit('close');
     }
 }

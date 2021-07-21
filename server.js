@@ -39,7 +39,6 @@ exports.__esModule = true;
 var http_1 = require("http");
 var socket_io_1 = require("socket.io");
 var room_1 = require("./lib/room");
-var mysql_1 = require("./mysql/mysql");
 var express = require("express");
 var mediasoup = require('mediasoup');
 var config = require('./config/config.js');

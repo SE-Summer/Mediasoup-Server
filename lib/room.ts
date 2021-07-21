@@ -187,6 +187,14 @@ export class Room extends EventEmitter{
             rtpParameters : consumer.rtpParameters,
             type : consumer.type,
         })
+
+        return {
+            consumerId            : consumer.id,
+            producerId : producer.id,
+            kind          : consumer.kind,
+            rtpParameters : consumer.rtpParameters,
+            type          : consumer.type
+        };
     }
 
     handleConnection(peerId, socket){
@@ -263,10 +271,12 @@ export class Room extends EventEmitter{
                         device : joinedPeer.device
                     });
 
-                    joinedPeer.getAllProducer().forEach((producer) => {
-                        this.createConsumer(peer, joinedPeer, producer);
-                    });
-                })
+                const peerInfos = [];
+                joinedPeers.forEach((joinedPeer) => (peerInfos.push({
+                    id : joinedPeer.id,
+                    displayName : joinedPeer.displayName,
+                    device : joinedPeer.device
+                })));
 
                 callback(null, peerInfos);
 
@@ -274,8 +284,8 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.createTransport :
             {
-                console.log("[Create Transport] peerId:%s", peer.id)
                 const {sctpCapabilities, transportType} = request.data
+                console.log("[Create Transport] peerId:%s, type:%s", peer.id, transportType)
 
                 if (transportType !== 'consumer' && transportType !== 'producer') {
                     callback('transport type ERROR!', {sendType : transportType});
@@ -316,6 +326,21 @@ export class Room extends EventEmitter{
                 await transport.connect({dtlsParameters});
 
                 callback(null, {});
+                break;
+            }
+            case RequestMethod.consume :
+            {
+                console.log("[Consume] peerId:%s", peer.id)
+                const {subscribeIds} = request.data;
+                const subscribedInfo = [];
+                for (const id of subscribeIds) {
+                    const subscribedPeer = this._peers.get(id);
+                    for (const producer of subscribedPeer.getAllProducer()) {
+                        subscribedInfo.push(await this.createConsumer(peer, subscribedPeer, producer));
+                    }
+                }
+                console.log(subscribedInfo)
+                callback(null, subscribedInfo);
                 break;
             }
             case RequestMethod.produce :

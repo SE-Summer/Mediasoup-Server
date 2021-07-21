@@ -9,14 +9,107 @@ const config = require('./config/config.js')
 const app = express();
 const mysqlDB = new DB();
 
+app.use(express.json())
+
 app.get(
     '/users',
-    async (req, res)=>{
-        let users = await mysqlDB.getUsers();
-        console.log(users);
-        await res.status(200).json({
-            "users": users
-        })
+    (req, res)=>{
+        mysqlDB.getUsers((rows)=>{
+            res.status(200).json({
+                "users": rows
+            })
+        });
+    }
+)
+
+app.get(
+    '/rooms',
+    (req, res)=>{
+        mysqlDB.getRooms((err, rows)=>{
+            res.status(200).json({
+                "rooms": rows
+            })
+        });
+    }
+)
+
+app.post(
+    '/register',
+    (req, res)=>{
+        console.log(req.body);
+        const {email, password, nickname} = req.body
+        mysqlDB.register(email, password, nickname, (err, rows)=>{
+            if (err){
+                res.status(401).json({
+                    "error": err
+                })
+            }else{
+                res.status(200).json({
+                    "users": rows[0]
+                })
+            }
+        });
+    }
+)
+
+app.post(
+    '/login',
+    (req, res)=>{
+        console.log(req.body);
+        const {email, password} = req.body;
+        mysqlDB.login(email, password,(err, rows)=>{
+            if (err){
+                res.status(401).json({
+                    "error": err
+                })
+            }else if(rows.length===0){
+                res.status(401).json({
+                    "error": "Unauthorized"
+                })
+            }else{
+                res.status(200).json({
+                    "user": rows[0]
+                })
+            }
+        });
+    }
+)
+
+app.post(
+    '/getRoom',
+    (req, res)=>{
+        console.log(req.body);
+        const {id, password} = req.body
+        mysqlDB.getRoom(id, password,(err, room)=>{
+            if (err){
+                res.status(401).json({
+                    "error": err,
+                    "room" : room
+                })
+            }else{
+                res.status(200).json({
+                    "room": room
+                })
+            }
+        });
+    }
+)
+
+app.post(
+    '/reserve',
+    (req, res)=>{
+        const {host, password, topic, start_time, end_time, max_num} = req.body
+        mysqlDB.appoint(host, password, start_time, end_time, max_num, topic, (err, rows)=>{
+            if (err){
+                res.status(401).json({
+                    "error": err
+                })
+            }else{
+                res.status(200).json({
+                    "room": rows[0]
+                })
+            }
+        });
     }
 )
 
@@ -46,7 +139,7 @@ io.of('/room').on("connection", async (socket)=>{
     room.handleConnection(peerId, socket)
 })
 
-httpServer.listen(4444, function () { console.log('Listening on port 4444') })
+httpServer.listen(4446, function () { console.log('Listening on port 4446') })
 
 async function getOrCreateRoom({ roomId })
 {

@@ -48,7 +48,13 @@ export class Room extends EventEmitter{
 
     _getJoinedPeers({ excludePeer = undefined } = {})
     {
-        return this._peers.map
+        if (excludePeer === undefined) {
+            return this._peers;
+        }
+
+        let filteredPeers = new Map(this._peers);
+        filteredPeers.delete(excludePeer.id);
+        return filteredPeers;
     }
     //
     // async createTransport({peerId,sctpCapabilities}) {
@@ -186,7 +192,7 @@ export class Room extends EventEmitter{
         })
 
         return {
-            id            : consumer.id,
+            consumerId            : consumer.id,
             producerId : producer.id,
             kind          : consumer.kind,
             rtpParameters : consumer.rtpParameters,
@@ -215,7 +221,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.join :
             {
-                const {displayName, joined, device, rtpCapabilites} = request.data;
+                const {displayName, joined, device, rtpCapabilities} = request.data;
 
                 if (joined) {
                     callback(null, {joined : true});
@@ -226,16 +232,17 @@ export class Room extends EventEmitter{
                     displayName : displayName,
                     joined : true,
                     device : device,
-                    rtpCapabilities : rtpCapabilites
+                    rtpCapabilities : rtpCapabilities
                 });
 
                 const joinedPeers = this._getJoinedPeers({excludePeer : peer});
 
-                const peerInfos = joinedPeers.map((joinedPeer) => ({
+                const peerInfos = [];
+                joinedPeers.forEach((joinedPeer) => (peerInfos.push({
                     id : joinedPeer.id,
                     displayName : joinedPeer.displayName,
                     device : joinedPeer.device
-                }));
+                })));
 
                 callback(null, {peerInfos});
 
@@ -243,8 +250,8 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.createTransport :
             {
-                console.log("[Create Transport] peerId:%s", peer.id)
                 const {sctpCapabilities, transportType} = request.data
+                console.log("[Create Transport] peerId:%s, type:%s", peer.id, transportType)
 
                 if (transportType !== 'consumer' && transportType !== 'producer') {
                     callback('transport type ERROR!', {sendType : transportType});
@@ -289,16 +296,16 @@ export class Room extends EventEmitter{
             case RequestMethod.consume :
             {
                 console.log("[Consume] peerId:%s", peer.id)
-                const {subscribeId} = request.data;
-
+                const {subscribeIds} = request.data;
                 const subscribedInfo = [];
-                subscribeId.forEach((id) => {
+                for (const id of subscribeIds) {
                     const subscribedPeer = this._peers.get(id);
-                    subscribedPeer.getAllProducer().forEach((producer) => {
-                        subscribedInfo.push(this.createConsumer(peer, subscribedPeer, producer));
-                    })
-                })
-                callback(null, {subscribedInfo});
+                    for (const producer of subscribedPeer.getAllProducer()) {
+                        subscribedInfo.push(await this.createConsumer(peer, subscribedPeer, producer));
+                    }
+                }
+                console.log(subscribedInfo)
+                callback(null, subscribedInfo);
                 break;
             }
             case RequestMethod.produce :

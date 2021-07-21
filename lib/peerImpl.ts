@@ -76,7 +76,7 @@ export class PeerImpl extends EventEmitter implements Peer{
     }
 
     getAllProducer() {
-        return this.producers;
+        return Array.from(this.producers.values());
     }
 
     setTransport(transportID: string, transport: MTypes.WebRtcTransport) {

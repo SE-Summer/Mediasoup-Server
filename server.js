@@ -45,23 +45,90 @@ var mediasoup = require('mediasoup');
 var config = require('./config/config.js');
 var app = express();
 var mysqlDB = new mysql_1.DB();
-app.get('/users', function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var users;
-    return __generator(this, function (_a) {
-        switch (_a.label) {
-            case 0: return [4 /*yield*/, mysqlDB.getUsers()];
-            case 1:
-                users = _a.sent();
-                console.log(users);
-                return [4 /*yield*/, res.status(200).json({
-                        "users": users
-                    })];
-            case 2:
-                _a.sent();
-                return [2 /*return*/];
+app.use(express.json());
+app.get('/users', function (req, res) {
+    mysqlDB.getUsers(function (rows) {
+        res.status(200).json({
+            "users": rows
+        });
+    });
+});
+app.get('/rooms', function (req, res) {
+    mysqlDB.getRooms(function (err, rows) {
+        res.status(200).json({
+            "rooms": rows
+        });
+    });
+});
+app.post('/register', function (req, res) {
+    console.log(req.body);
+    var _a = req.body, email = _a.email, password = _a.password, nickname = _a.nickname;
+    mysqlDB.register(email, password, nickname, function (err, rows) {
+        if (err) {
+            res.status(401).json({
+                "error": err
+            });
+        }
+        else {
+            res.status(200).json({
+                "users": rows[0]
+            });
         }
     });
-}); });
+});
+app.post('/login', function (req, res) {
+    console.log(req.body);
+    var _a = req.body, email = _a.email, password = _a.password;
+    mysqlDB.login(email, password, function (err, rows) {
+        if (err) {
+            res.status(401).json({
+                "error": err
+            });
+        }
+        else if (rows.length === 0) {
+            res.status(401).json({
+                "error": "Unauthorized"
+            });
+        }
+        else {
+            res.status(200).json({
+                "user": rows[0]
+            });
+        }
+    });
+});
+app.post('/getRoom', function (req, res) {
+    console.log(req.body);
+    var _a = req.body, id = _a.id, password = _a.password;
+    mysqlDB.getRoom(id, password, function (err, room) {
+        if (err) {
+            res.status(401).json({
+                "error": err,
+                "room": room
+            });
+        }
+        else {
+            res.status(200).json({
+                "room": room
+            });
+        }
+    });
+});
+app.post('/reserve', function (req, res) {
+    var _a = req.body, host = _a.host, password = _a.password, topic = _a.topic, start_time = _a.start_time, end_time = _a.end_time, max_num = _a.max_num;
+    mysqlDB.appoint(host, password, start_time, end_time, max_num, topic, function (err, rows) {
+        if (err) {
+            res.status(401).json({
+                "error": err
+            });
+        }
+        else {
+            res.status(200).json({
+                "room": rows[0]
+            });
+        }
+    });
+});
 var httpServer = http_1.createServer(app);
 var worker;
 mediasoup.createWorker({
@@ -88,7 +155,7 @@ io.of('/room').on("connection", function (socket) { return __awaiter(void 0, voi
         }
     });
 }); });
-httpServer.listen(4444, function () { console.log('Listening on port 4444'); });
+httpServer.listen(4446, function () { console.log('Listening on port 4446'); });
 function getOrCreateRoom(_a) {
     var roomId = _a.roomId;
     return __awaiter(this, void 0, void 0, function () {

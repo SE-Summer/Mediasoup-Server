@@ -32,7 +32,7 @@ io.of('/room').on("connection", async (socket)=>{
 })
 
 
-httpServer.listen(4446, function () { console.log('Listening on port 4442') })
+httpServer.listen(4446, function () { console.log('Listening on port 4446') })
 
 async function getOrCreateRoom({ roomId })
 {

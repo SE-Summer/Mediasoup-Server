@@ -8,6 +8,7 @@ export class PeerImpl extends EventEmitter implements Peer{
     public socket : socketio.Socket;
     private displayName : string;
     private joined : boolean = false;
+    private closed : boolean = false;
     private device : object;
     private rtpCapabilities : MTypes.RtpCapabilities;
     private transports = new Map<string, MTypes.WebRtcTransport>();
@@ -30,6 +31,7 @@ export class PeerImpl extends EventEmitter implements Peer{
             id : this.id,
             displayName : this.displayName,
             joined : this.joined,
+            closed : this.closed,
             device : this.device,
             rtpCapabilities : this.rtpCapabilities
         };
@@ -100,12 +102,14 @@ export class PeerImpl extends EventEmitter implements Peer{
     }
 
     setPeerInfo({
-                    displayName, joined, device, rtpCapabilities
-    }: { displayName: any; joined: any; device: any; rtpCapabilities: any; }) {
+                    displayName, joined, closed, device, rtpCapabilities
+    }: { displayName: any; joined: any; closed : any; device: any; rtpCapabilities: any; }) {
         if (displayName !== undefined)
             this.displayName = displayName;
         if (joined !== undefined)
             this.joined = joined
+        if (closed !== undefined)
+            this.closed = closed
         if (device !== undefined)
             this.device = device
         if (rtpCapabilities !== undefined)
@@ -136,8 +140,23 @@ export class PeerImpl extends EventEmitter implements Peer{
     // endregion
 
     close() {
-        this.transports.forEach((transport, key) => {
+        this.closed = true;
+
+        this.producers.forEach((producer) => {
+            producer.close();
+        })
+        this.consumers.forEach((consumer) => {
+            consumer.close();
+        })
+        this.transports.forEach((transport) => {
             transport.close();
         })
+
+        this.transports.clear();
+        this.producers.clear();
+        this.consumers.clear();
+
+        this.socket.disconnect(true);
+        this.emit('close');
     }
 }

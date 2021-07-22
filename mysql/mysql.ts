@@ -144,6 +144,22 @@ export class DB {
         )
     }
 
+    autoLogin(token, callback){
+        const queryString = 'select * from users where token="'+token+'"'
+        this._connection.query(
+            queryString,
+            (err, rows)=>{
+                if(err){
+                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    callback('SSE', null)
+                }else{
+                    callback(null, rows)
+                }
+            }
+        )
+
+    }
+
     appoint(token, password, start_time, end_time, max_num, topic, callback){
         if(start_time >= end_time){
             callback("Invalid End Time", null);

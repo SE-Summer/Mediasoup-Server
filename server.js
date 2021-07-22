@@ -134,6 +134,27 @@ app.post('/login', function (req, res) {
         }
     });
 });
+app.post('/autoLogin', function (req, res) {
+    console.log(req.body);
+    var token = req.body.token;
+    mysqlDB.autoLogin(token, function (err, rows) {
+        if (err) {
+            res.status(401).json({
+                "error": err
+            });
+        }
+        else if (rows.length === 0) {
+            res.status(401).json({
+                "error": "Unauthorized"
+            });
+        }
+        else {
+            res.status(200).json({
+                "user": rows[0]
+            });
+        }
+    });
+});
 app.post('/getRoom', function (req, res) {
     console.log(req.body);
     var _a = req.body, id = _a.id, password = _a.password;

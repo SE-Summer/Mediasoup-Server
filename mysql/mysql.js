@@ -125,6 +125,18 @@ var DB = /** @class */ (function () {
             }
         });
     };
+    DB.prototype.autoLogin = function (token, callback) {
+        var queryString = 'select * from users where token="' + token + '"';
+        this._connection.query(queryString, function (err, rows) {
+            if (err) {
+                console.log('[SQL_SELECT_ERROR] ', err.message);
+                callback('SSE', null);
+            }
+            else {
+                callback(null, rows);
+            }
+        });
+    };
     DB.prototype.appoint = function (token, password, start_time, end_time, max_num, topic, callback) {
         var _this = this;
         if (start_time >= end_time) {

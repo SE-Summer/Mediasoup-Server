@@ -120,6 +120,29 @@ app.post(
 )
 
 app.post(
+    '/autoLogin',
+    (req, res)=>{
+        console.log(req.body);
+        const {token} = req.body;
+        mysqlDB.autoLogin(token,(err, rows)=>{
+            if (err){
+                res.status(401).json({
+                    "error": err
+                })
+            }else if(rows.length===0){
+                res.status(401).json({
+                    "error": "Unauthorized"
+                })
+            }else{
+                res.status(200).json({
+                    "user": rows[0]
+                })
+            }
+        });
+    }
+)
+
+app.post(
     '/getRoom',
     (req, res)=>{
         console.log(req.body);

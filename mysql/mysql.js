@@ -1,44 +1,11 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-var __generator = (this && this.__generator) || function (thisArg, body) {
-    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
-    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-    function verb(n) { return function (v) { return step([n, v]); }; }
-    function step(op) {
-        if (f) throw new TypeError("Generator is already executing.");
-        while (_) try {
-            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-            if (y = 0, t) op = [op[0] & 2, t.value];
-            switch (op[0]) {
-                case 0: case 1: t = op; break;
-                case 4: _.label++; return { value: op[1], done: false };
-                case 5: _.label++; y = op[1]; op = [0]; continue;
-                case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                default:
-                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                    if (t[2]) _.ops.pop();
-                    _.trys.pop(); continue;
-            }
-            op = body.call(thisArg, _);
-        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
-    }
-};
 exports.__esModule = true;
 exports.DB = void 0;
 //import {mysql} from "mysql"
 var mysql = require("mysql");
+var moment = require('moment');
+var send_email_1 = require("./send-email");
+var randomString = require("string-random");
 var DB = /** @class */ (function () {
     function DB() {
         this._connection = mysql.createConnection({
@@ -49,23 +16,159 @@ var DB = /** @class */ (function () {
         });
         this._connection.connect();
     }
-    DB.prototype.getUsers = function () {
-        return __awaiter(this, void 0, void 0, function () {
-            var result;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0: return [4 /*yield*/, this._connection.query('select * from users', function (err, rows) {
-                            if (err) {
-                                console.log('[SQL SELECT ERROR] ', err.message);
-                                return;
-                            }
-                            result = rows[0];
-                        })];
-                    case 1:
-                        _a.sent();
-                        return [2 /*return*/, result];
+    DB.prototype.getUsers = function (callback) {
+        this._connection.query('select * from users', function (err, rows) {
+            if (err) {
+                console.log('[SQL_SELECT_ERROR] ', err.message);
+                callback('SSE', null);
+            }
+            else {
+                callback(null, rows);
+            }
+        });
+    };
+    DB.prototype.getRooms = function (callback) {
+        this._connection.query('select * from rooms', function (err, rows) {
+            if (err) {
+                console.log('[SQL_SELECT_ERROR] ', err.message);
+                callback('SSE', null);
+            }
+            else {
+                callback(null, rows);
+            }
+        });
+    };
+    DB.prototype.register = function (email, verify, nickname, password, callback) {
+        var _this = this;
+        var queryString = 'select * from users where email="' + email + '"';
+        this._connection.query(queryString, function (err, rows) {
+            if (err) {
+                console.log('[SQL_INSERT_ERROR] ', err.message);
+                callback("SIE", null);
+            }
+            else {
+                var user_1 = rows[0];
+                if (verify !== user_1.verify) {
+                    callback("WVC", null);
                 }
-            });
+                else {
+                    var queryString2 = 'update users set password="' + password + '",nickname="' + nickname + '",verify=null where email="' + email + '"';
+                    _this._connection.query(queryString2, function (err, ok) {
+                        if (err) {
+                            console.log('[SQL_UPDATE_ERROR] ', err.message);
+                            callback("SUE", null);
+                        }
+                        else {
+                            callback(null, user_1);
+                        }
+                    });
+                }
+            }
+        });
+    };
+    DB.prototype.verify = function (email, callback) {
+        var _this = this;
+        var verify = randomString(6);
+        var queryString = 'insert into users set email="' + email + '",verify="' + verify + '"';
+        send_email_1.sendMail(email, verify, function (succ) {
+            if (succ) {
+                console.log("Email Send: ", verify);
+            }
+            else {
+                console.log("Email Send Failed!");
+            }
+        });
+        this._connection.query(queryString, function (err, ok) {
+            if (err) {
+                var queryString_1 = 'update users set verify="' + verify + '" where email="' + email + '"';
+                _this._connection.query(queryString_1, function (err, ok) {
+                    if (err) {
+                        console.log('[SQL_UPDATE_ERROR] ', err.message);
+                        callback("SUE", null);
+                    }
+                    else {
+                        callback(null, ok);
+                    }
+                });
+            }
+            else {
+                callback(null, ok);
+            }
+        });
+    };
+    DB.prototype.login = function (email, password, callback) {
+        var _this = this;
+        var queryString = 'select * from users where email="' + email + '"and password="' + password + '"';
+        var updateString = 'update users set token="' + randomString(32) + '" where email="' + email + '"and password="' + password + '"';
+        this._connection.query(updateString, function (err, ok) {
+            if (err) {
+                console.log('[SQL_SELECT_ERROR] ', err.message);
+                callback('Unauthorized', null);
+            }
+            else {
+                _this._connection.query(queryString, function (err, rows) {
+                    if (err) {
+                        console.log('[SQL_SELECT_ERROR] ', err.message);
+                        callback('SSE', null);
+                    }
+                    else {
+                        callback(null, rows);
+                    }
+                });
+            }
+        });
+    };
+    DB.prototype.appoint = function (host, password, start_time, end_time, max_num, topic, callback) {
+        var _this = this;
+        var queryString = 'insert into rooms set host=' + host + ',start_time="' + start_time + '",end_time="' + end_time + '",max_num=' + max_num + ',topic="' + topic + '",token="' + randomString() + '",password="' + password + '"';
+        this._connection.query(queryString, function (err, ok) {
+            if (err) {
+                console.log('[SQL_INSERT_ERROR] ', err.message);
+                callback('SIE', null);
+            }
+            else {
+                var queryString2 = 'select * from rooms where id=' + ok.insertId;
+                _this._connection.query(queryString2, function (err, rows) {
+                    if (err) {
+                        console.log('[SQL_SELECT_ERROR] ', err.message);
+                        callback('SSE', null);
+                    }
+                    else {
+                        callback(null, rows);
+                    }
+                });
+            }
+        });
+    };
+    DB.prototype.getRoom = function (id, password, callback) {
+        var queryString = 'select * from rooms where id=' + id;
+        this._connection.query(queryString, function (err, rows) {
+            if (err) {
+                console.log('[SQL_SELECT_ERROR] ', err.message);
+                callback('SEE', null);
+            }
+            else {
+                var room = rows[0];
+                if (room) {
+                    room.start_time = moment(room.start_time).format('YYYY-MM-DD HH:mm:ss');
+                    room.end_time = moment(room.end_time).format('YYYY-MM-DD HH:mm:ss');
+                    if (room.password === password) {
+                        if (room.start_time > moment().format('YYYY-MM-DD HH:mm:ss')
+                            || room.end_time < moment().format('YYYY-MM-DD HH:mm:ss')) {
+                            callback("Invalid Time", room);
+                        }
+                        else {
+                            callback(null, room);
+                        }
+                    }
+                    else {
+                        callback('Unauthorized', null);
+                    }
+                }
+                else {
+                    callback("No Such Room", null);
+                }
+            }
         });
     };
     return DB;

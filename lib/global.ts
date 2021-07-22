@@ -69,4 +69,5 @@ export enum RequestMethod {
     resumeProducer = 'resumeProducer',
     pauseConsumer = 'pauseConsumer',
     resumeConsumer = 'resumeConsumer',
+    close = 'close'
 }

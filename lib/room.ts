@@ -3,7 +3,6 @@ import {Peer} from './peer';
 import {RequestMethod} from "./global";
 import {Socket} from "socket.io";
 import {types as MTypes} from 'mediasoup';
-import {Consumer} from "mediasoup/lib/Consumer";
 
 const EventEmitter = require('events').EventEmitter;
 const config = require('../config/config')
@@ -266,17 +265,12 @@ export class Room extends EventEmitter{
 
                 joinedPeers.forEach((joinedPeer) => {
                     peerInfos.push({
-                        id : joinedPeer.id,
-                        displayName : joinedPeer.displayName,
-                        device : joinedPeer.device
+                        id: joinedPeer.id,
+                        displayName: joinedPeer.displayName,
+                        device: joinedPeer.device
                     });
 
-                const peerInfos = [];
-                joinedPeers.forEach((joinedPeer) => (peerInfos.push({
-                    id : joinedPeer.id,
-                    displayName : joinedPeer.displayName,
-                    device : joinedPeer.device
-                })));
+                });
 
                 callback(null, peerInfos);
 

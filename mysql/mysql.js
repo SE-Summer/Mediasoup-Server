@@ -205,6 +205,37 @@ var DB = /** @class */ (function () {
             }
         });
     };
+    DB.prototype.getPortrait = function (token, callback) {
+        this._connection.query('select users.portrait from users where token="' + token + '"', function (err, rows) {
+            if (err) {
+                console.log('[SQL_SELECT_ERROR] ', err.message);
+                callback('SSE', null);
+            }
+            else {
+                if (rows.length === 0) {
+                    callback("Wrong Token", null);
+                }
+                else {
+                    callback(null, rows[0].portrait);
+                }
+            }
+        });
+    };
+    DB.prototype.savePortrait = function (token, path, callback) {
+        var queryString = 'update users set portrait="' + path + '" where token="' + token + '"';
+        this._connection.query(queryString, function (err, ok) {
+            if (err) {
+                console.log('[SQL_SELECT_ERROR] ', err.message);
+                callback('SSE', null);
+            }
+            else if (ok.changedRows === 0) {
+                callback('Wrong Token', null);
+            }
+            else {
+                callback(null, ok);
+            }
+        });
+    };
     return DB;
 }());
 exports.DB = DB;

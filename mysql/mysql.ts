@@ -245,4 +245,21 @@ export class DB {
             }
         )
     }
+
+    savePortrait(token, path, callback){
+        const queryString = 'update users set portrait="'+path+'" where token="'+token+'"';
+        this._connection.query(
+            queryString,
+            (err, ok)=>{
+                if(err){
+                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    callback('SSE', null);
+                }else if (ok.changedRows === 0){
+                    callback('Wrong Token', null);
+                }else{
+                    callback(null, ok);
+                }
+            }
+        )
+    }
 }

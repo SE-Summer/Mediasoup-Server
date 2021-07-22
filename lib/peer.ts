@@ -23,6 +23,8 @@ export interface Peer{
 
     getAllProducer ();
 
+    getAllDataProducer ();
+
     /**
      * @return peerInfo:
      * {

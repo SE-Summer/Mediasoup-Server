@@ -64,6 +64,7 @@ export enum RequestMethod {
      * @response subscribedInfo : information of subscribed peer
      */
     consume = 'consume',
+    produceData = 'produceData',
     closeProducer = 'closeProducer',
     pauseProducer = 'pauseProducer',
     resumeProducer = 'resumeProducer',

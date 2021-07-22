@@ -127,6 +127,14 @@ var DB = /** @class */ (function () {
     };
     DB.prototype.appoint = function (token, password, start_time, end_time, max_num, topic, callback) {
         var _this = this;
+        if (start_time >= end_time) {
+            callback("Invalid End Time", null);
+            return;
+        }
+        else if (moment(start_time).format('YYYY-MM-DD HH:mm') < moment().format('YYYY-MM-DD HH:mm')) {
+            callback("Invalid Start Time", null);
+            return;
+        }
         var queryString = 'select users.id from users where token="' + token + '"';
         var host;
         this._connection.query(queryString, function (err, rows) {
@@ -175,11 +183,12 @@ var DB = /** @class */ (function () {
             else {
                 var room = rows[0];
                 if (room) {
-                    room.start_time = moment(room.start_time).format('YYYY-MM-DD HH:mm:ss');
-                    room.end_time = moment(room.end_time).format('YYYY-MM-DD HH:mm:ss');
+                    room.start_time = moment(room.start_time).format('YYYY-MM-DD HH:mm');
+                    room.end_time = moment(room.end_time).format('YYYY-MM-DD HH:mm');
+                    var now_time = moment().format('YYYY-MM-DD HH:mm');
                     if (room.password === password) {
-                        if (room.start_time > moment().format('YYYY-MM-DD HH:mm:ss')
-                            || room.end_time < moment().format('YYYY-MM-DD HH:mm:ss')) {
+                        if (room.start_time > now_time || room.end_time < now_time) {
+                            console.log(room.start_time, room.end_time, now_time);
                             callback("Invalid Time", room);
                         }
                         else {

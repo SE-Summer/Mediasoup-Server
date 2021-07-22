@@ -30,5 +30,4 @@ export function sendMail(mail, code, call) {
             call(true)
         }
     });
-
 }

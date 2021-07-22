@@ -145,6 +145,13 @@ export class DB {
     }
 
     appoint(token, password, start_time, end_time, max_num, topic, callback){
+        if(start_time >= end_time){
+            callback("Invalid End Time", null);
+            return;
+        }else if (moment(start_time).format('YYYY-MM-DD HH:mm') < moment().format('YYYY-MM-DD HH:mm')){
+            callback("Invalid Start Time", null);
+            return;
+        }
         const queryString = 'select users.id from users where token="' + token + '"';
         let host;
         this._connection.query(
@@ -200,11 +207,12 @@ export class DB {
                 }else{
                     const room = rows[0];
                     if(room){
-                        room.start_time = moment(room.start_time).format('YYYY-MM-DD HH:mm:ss');
-                        room.end_time = moment(room.end_time).format('YYYY-MM-DD HH:mm:ss');
+                        room.start_time = moment(room.start_time).format('YYYY-MM-DD HH:mm');
+                        room.end_time = moment(room.end_time).format('YYYY-MM-DD HH:mm');
+                        const now_time = moment().format('YYYY-MM-DD HH:mm');
                         if(room.password === password){
-                            if(room.start_time > moment().format('YYYY-MM-DD HH:mm:ss')
-                                || room.end_time < moment().format('YYYY-MM-DD HH:mm:ss')){
+                            if(room.start_time > now_time || room.end_time < now_time){
+                                console.log(room.start_time, room.end_time, now_time)
                                 callback("Invalid Time", room);
                             }else{
                                 callback(null, room);
@@ -220,4 +228,21 @@ export class DB {
         )
     }
 
+    getPortrait(token, callback){
+        this._connection.query(
+            'select users.portrait from users where token="'+token+'"',
+            (err, rows)=>{
+                if(err){
+                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    callback('SSE', null)
+                }else{
+                    if (rows.length === 0){
+                        callback("Wrong Token", null);
+                    }else{
+                        callback(null, rows[0].portrait);
+                    }
+                }
+            }
+        )
+    }
 }

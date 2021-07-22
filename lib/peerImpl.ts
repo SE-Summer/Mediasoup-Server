@@ -11,7 +11,6 @@ export class PeerImpl extends EventEmitter implements Peer{
     private closed : boolean = false;
     private device : object;
     private rtpCapabilities : MTypes.RtpCapabilities;
-    private sctpCapabilities : MTypes.SctpCapabilities;
     private transports = new Map<string, MTypes.WebRtcTransport>();
     public producers = new Map<string, MTypes.Producer>();
     private consumers = new Map<string, MTypes.Consumer>();
@@ -34,8 +33,7 @@ export class PeerImpl extends EventEmitter implements Peer{
             joined : this.joined,
             closed : this.closed,
             device : this.device,
-            rtpCapabilities : this.rtpCapabilities,
-            sctpCapabilities : this.sctpCapabilities
+            rtpCapabilities : this.rtpCapabilities
         };
     }
 
@@ -83,10 +81,6 @@ export class PeerImpl extends EventEmitter implements Peer{
         return Array.from(this.producers.values());
     }
 
-    getAllDataProducer() {
-        return Array.from(this.dataProducers.values());
-    }
-
     setTransport(transportID: string, transport: MTypes.WebRtcTransport) {
         this.transports.set(transportID, transport);
     }
@@ -108,8 +102,8 @@ export class PeerImpl extends EventEmitter implements Peer{
     }
 
     setPeerInfo({
-                    displayName, joined, closed, device, rtpCapabilities, sctpCapabilities
-    }: { displayName: any; joined: any; closed : any; device: any; rtpCapabilities: any; sctpCapabilities : any}) {
+                    displayName, joined, closed, device, rtpCapabilities
+    }: { displayName: any; joined: any; closed : any; device: any; rtpCapabilities: any; }) {
         if (displayName !== undefined)
             this.displayName = displayName;
         if (joined !== undefined)
@@ -120,8 +114,6 @@ export class PeerImpl extends EventEmitter implements Peer{
             this.device = device
         if (rtpCapabilities !== undefined)
             this.rtpCapabilities = rtpCapabilities
-        if (sctpCapabilities !== undefined)
-            this.rtpCapabilities = sctpCapabilities
     }
 
     deleteTransport (transportID:string) {
@@ -156,12 +148,6 @@ export class PeerImpl extends EventEmitter implements Peer{
         this.consumers.forEach((consumer) => {
             consumer.close();
         })
-        this.dataProducers.forEach((producer) => {
-            producer.close();
-        })
-        this.dataConsumers.forEach((consumer) => {
-            consumer.close();
-        })
         this.transports.forEach((transport) => {
             transport.close();
         })
@@ -169,9 +155,8 @@ export class PeerImpl extends EventEmitter implements Peer{
         this.transports.clear();
         this.producers.clear();
         this.consumers.clear();
-        this.dataProducers.clear();
-        this.dataConsumers.clear();
 
+        this.socket.disconnect(true);
         this.emit('close');
     }
 }

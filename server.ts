@@ -153,7 +153,7 @@ const io = new Server(httpServer, {
 io.of('/room').on("connection", async (socket)=>{
     const {roomId, peerId} = socket.handshake.query
     const room = await getOrCreateRoom({roomId})
-    room.handleConnection(peerId, socket);
+    room.handleConnection(peerId, socket)
 })
 
 httpServer.listen(4446, function () { console.log('Listening on port 4446') })
@@ -170,10 +170,7 @@ async function getOrCreateRoom({ roomId })
 
         rooms.set(roomId, room);
         console.log("[RoomList]", rooms.keys())
-        room.on('close', () => {
-            rooms.delete(roomId);
-            console.log(`room [${roomId}] closed!`);
-        });
+        room.on('close', () => rooms.delete(roomId));
     }
 
     return room;

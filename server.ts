@@ -1,6 +1,7 @@
 import {createServer} from "http"
 import {Server} from "socket.io"
 import {Room} from "./lib/room"
+import {DB} from "./mysql/mysql"
 
 const express = require("express")
 const mediasoup = require('mediasoup');
@@ -21,10 +22,12 @@ app.get(
     }
 )
 
-app.get(
-    '/rooms',
+app.post(
+    '/getReservations',
     (req, res)=>{
-        mysqlDB.getRooms((err, rows)=>{
+        console.log(req.body);
+        const {token} = req.body;
+        mysqlDB.getRooms(token, (err, rows)=>{
             res.status(200).json({
                 "rooms": rows
             })
@@ -36,8 +39,8 @@ app.post(
     '/register',
     (req, res)=>{
         console.log(req.body);
-        const {email, nickname, password, verify} = req.body
-        mysqlDB.register(email, verify, nickname, password, (err, user)=>{
+        const {token, nickname, password} = req.body
+        mysqlDB.register(token, nickname, password, (err, ok)=>{
             if (err){
                 res.status(401).json({
                     "error": err
@@ -55,8 +58,28 @@ app.post(
     '/verify',
     (req, res)=>{
         console.log(req.body);
+        const {email, verify} = req.body
+        mysqlDB.verify(email, verify, (err, token)=>{
+            if (err){
+                res.status(401).json({
+                    "error": err
+                })
+            }else{
+                res.status(200).json({
+                    "status": "OK",
+                    "token": token
+                })
+            }
+        });
+    }
+)
+
+app.post(
+    '/email',
+    (req, res)=>{
+        console.log(req.body);
         const {email} = req.body
-        mysqlDB.verify(email, (err, ok)=>{
+        mysqlDB.sendEmail(email, (err, ok)=>{
             if (err){
                 res.status(401).json({
                     "error": err
@@ -115,8 +138,9 @@ app.post(
 app.post(
     '/reserve',
     (req, res)=>{
-        const {host, password, topic, start_time, end_time, max_num} = req.body
-        mysqlDB.appoint(host, password, start_time, end_time, max_num, topic, (err, rows)=>{
+        console.log(req.body);
+        const {token, password, topic, start_time, end_time, max_num} = req.body
+        mysqlDB.appoint(token, password, start_time, end_time, max_num, topic, (err, rows)=>{
             if (err){
                 res.status(401).json({
                     "error": err
@@ -129,7 +153,6 @@ app.post(
         });
     }
 )
-
 
 const httpServer = createServer(app);
 

@@ -27,8 +27,8 @@ var DB = /** @class */ (function () {
             }
         });
     };
-    DB.prototype.getRooms = function (callback) {
-        this._connection.query('select * from rooms', function (err, rows) {
+    DB.prototype.getRooms = function (token, callback) {
+        this._connection.query('select r.id, r.token, r.password, r.host, r.end_time, r.start_time, r.topic, r.max_num from rooms r, users u where u.id = r.host and u.token="' + token + '"', function (err, rows) {
             if (err) {
                 console.log('[SQL_SELECT_ERROR] ', err.message);
                 callback('SSE', null);
@@ -38,37 +38,26 @@ var DB = /** @class */ (function () {
             }
         });
     };
-    DB.prototype.register = function (email, verify, nickname, password, callback) {
-        var _this = this;
-        var queryString = 'select * from users where email="' + email + '"';
-        this._connection.query(queryString, function (err, rows) {
+    DB.prototype.register = function (token, nickname, password, callback) {
+        var queryString = 'update users set nickname="' + nickname + '", password="' + password + '", verify=null where token="' + token + '"';
+        this._connection.query(queryString, function (err, ok) {
             if (err) {
                 console.log('[SQL_INSERT_ERROR] ', err.message);
                 callback("SIE", null);
             }
             else {
-                var user_1 = rows[0];
-                if (verify !== user_1.verify) {
-                    callback("WVC", null);
+                if (ok.changedRows > 0) {
+                    callback(null, ok);
                 }
                 else {
-                    var queryString2 = 'update users set password="' + password + '",nickname="' + nickname + '",verify=null where email="' + email + '"';
-                    _this._connection.query(queryString2, function (err, ok) {
-                        if (err) {
-                            console.log('[SQL_UPDATE_ERROR] ', err.message);
-                            callback("SUE", null);
-                        }
-                        else {
-                            callback(null, user_1);
-                        }
-                    });
+                    callback("Wrong Token", null);
                 }
             }
         });
     };
-    DB.prototype.verify = function (email, callback) {
+    DB.prototype.sendEmail = function (email, callback) {
         var _this = this;
-        var verify = randomString(6);
+        var verify = randomString(6).toUpperCase();
         var queryString = 'insert into users set email="' + email + '",verify="' + verify + '"';
         send_email_1.sendMail(email, verify, function (succ) {
             if (succ) {
@@ -96,6 +85,24 @@ var DB = /** @class */ (function () {
             }
         });
     };
+    DB.prototype.verify = function (email, verify, callback) {
+        var token = randomString(32);
+        var queryString = 'update users set token="' + token + '" where verify="' + verify + '" and email="' + email + '"';
+        this._connection.query(queryString, function (err, ok) {
+            if (err) {
+                console.log('[SQL_UPDATE_ERROR] ', err.message);
+                callback("SUE", null);
+            }
+            else {
+                if (ok.changedRows > 0) {
+                    callback(null, token);
+                }
+                else {
+                    callback("Wrong Verify Code", null);
+                }
+            }
+        });
+    };
     DB.prototype.login = function (email, password, callback) {
         var _this = this;
         var queryString = 'select * from users where email="' + email + '"and password="' + password + '"';
@@ -118,25 +125,43 @@ var DB = /** @class */ (function () {
             }
         });
     };
-    DB.prototype.appoint = function (host, password, start_time, end_time, max_num, topic, callback) {
+    DB.prototype.appoint = function (token, password, start_time, end_time, max_num, topic, callback) {
         var _this = this;
-        var queryString = 'insert into rooms set host=' + host + ',start_time="' + start_time + '",end_time="' + end_time + '",max_num=' + max_num + ',topic="' + topic + '",token="' + randomString() + '",password="' + password + '"';
-        this._connection.query(queryString, function (err, ok) {
+        var queryString = 'select users.id from users where token="' + token + '"';
+        var host;
+        this._connection.query(queryString, function (err, rows) {
             if (err) {
-                console.log('[SQL_INSERT_ERROR] ', err.message);
-                callback('SIE', null);
+                console.log('[SQL_SELECT_ERROR] ', err.message);
+                callback('SSE', null);
+                return;
             }
             else {
-                var queryString2 = 'select * from rooms where id=' + ok.insertId;
-                _this._connection.query(queryString2, function (err, rows) {
-                    if (err) {
-                        console.log('[SQL_SELECT_ERROR] ', err.message);
-                        callback('SSE', null);
-                    }
-                    else {
-                        callback(null, rows);
-                    }
-                });
+                if (rows[0]) {
+                    host = rows[0].id;
+                    var queryString2 = 'insert into rooms set host=' + host + ',start_time="' + start_time + '",end_time="' + end_time + '",max_num=' + max_num + ',topic="' + topic + '",token="' + randomString() + '",password="' + password + '"';
+                    _this._connection.query(queryString2, function (err, ok) {
+                        if (err) {
+                            console.log('[SQL_INSERT_ERROR] ', err.message);
+                            callback('SIE', null);
+                        }
+                        else {
+                            var queryString2_1 = 'select * from rooms where id=' + ok.insertId;
+                            _this._connection.query(queryString2_1, function (err, rows) {
+                                if (err) {
+                                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                                    callback('SSE', null);
+                                }
+                                else {
+                                    callback(null, rows);
+                                }
+                            });
+                        }
+                    });
+                }
+                else {
+                    callback('Wrong Token', null);
+                    return;
+                }
             }
         });
     };

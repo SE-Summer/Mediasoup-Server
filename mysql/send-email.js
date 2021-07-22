@@ -3,34 +3,34 @@ exports.__esModule = true;
 exports.sendMail = void 0;
 var nodemailer = require('nodemailer'); //引入模块
 var transporter = nodemailer.createTransport({
-    //node_modules/nodemailer/lib/well-known/services.json  查看相关的配置，如果使用qq邮箱，就查看qq邮箱的相关配置
     service: '163',
     port: 465,
     secure: true,
     auth: {
-        user: 'zjcxjz@163.com',
-        pass: 'YFNQEBEHISUPJWIY' // smtp 的授权码
+        user: 'summer_mymeeting@163.com',
+        pass: 'AZTESQQZXQWHXHYB'
     }
 });
 function sendMail(mail, code, call) {
-    // 发送的配置项
     var mailOptions = {
-        from: '"MyMeeting官方" <zjcxjz@163.com>',
+        from: '"MyMeeting官方" <summer_mymeeting@163.com>',
         to: mail,
         subject: 'MyMeeting验证邮件',
         text: '',
         html: '<h2>欢迎使用MyMeeting，你的验证码是：</h2>' +
             '<div style="font-size: 40px; color: #00000099; font-weight: bold; text-align: center">' +
             '<p>' + code + '</p>' +
-            '</div>'
+            '</div>' +
+            '<p>验证码三十分钟内有效。 </p>' +
+            '<p>更多内容请访问www.</p>'
     };
-    //发送函数
+    console.log("Sending Email: ", code, " To: ", mail);
     transporter.sendMail(mailOptions, function (error, info) {
         if (error) {
             call(false);
         }
         else {
-            call(true); //因为是异步 所有需要回调函数通知成功结果
+            call(true);
         }
     });
 }

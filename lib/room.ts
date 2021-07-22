@@ -214,9 +214,9 @@ export class Room extends EventEmitter{
 
                 joinedPeers.forEach((joinedPeer) => {
                     peerInfos.push({
-                        id : joinedPeer.id,
-                        displayName : joinedPeer.displayName,
-                        device : joinedPeer.device
+                        id: joinedPeer.id,
+                        displayName: joinedPeer.displayName,
+                        device: joinedPeer.device
                     });
 
                     joinedPeer.getAllProducer().forEach((producer) => {

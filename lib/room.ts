@@ -84,19 +84,23 @@ export class Room extends EventEmitter{
         consumerPeer.setConsumer(consumer.id, consumer);
 
         consumer.on('transportclose', () => {
-           consumerPeer.deleteConsumer(consumer.id);
+            logger.info(`Consumer of peer ${consumerPeer.id} Closed because of transport closed!`);
+            consumerPeer.deleteConsumer(consumer.id);
         });
 
         consumer.on('producerclose', () => {
+            logger.info(`Consumer of peer ${consumerPeer.id} Closed because of producer of peer ${producerPeer.id} closed!`);
             consumerPeer.deleteConsumer(consumer.id);
             this._notify(consumerPeer.socket, 'consumerClosed', {consumerId : consumer.id});
         });
 
         consumer.on('producerpause', () => {
+            logger.info(`Consumer of peer ${consumerPeer.id} Paused because of producer of peer ${producerPeer.id} paused!`);
             this._notify(consumerPeer.socket, 'consumerPaused', {consumerId : consumer.id});
         })
 
         consumer.on('producerresume', () => {
+            logger.info(`Consumer of peer ${consumerPeer.id} Resumed because of producer of peer ${producerPeer.id} resumed!`);
             this._notify(consumerPeer.socket, 'consumerResumed', {consumerId : consumer.id});
         })
 
@@ -124,10 +128,12 @@ export class Room extends EventEmitter{
         consumerPeer.setDataConsumer(dataConsumer.id, dataConsumer);
 
         dataConsumer.on("transportclose", () => {
+            logger.info(`Data Consumer of peer ${consumerPeer.id} Closed because of transport closed!`);
             consumerPeer.deleteDataConsumer(dataConsumer.id);
         })
 
         dataConsumer.on('dataproducerclose', () => {
+            logger.info(`Data Consumer of peer ${consumerPeer.id} Closed because of producer of peer ${producerPeer.id} closed!`);
             consumerPeer.deleteDataConsumer(dataConsumer.id);
             dataConsumer.close();
 
@@ -158,6 +164,11 @@ export class Room extends EventEmitter{
 
                     callback(error, {});
                 })
+        })
+
+        socket.on('disconnect', () => {
+            logger.info(`Peer ${peer.id} disconnected!`);
+            peer.close();
         })
 
         peer.on('close', () => {
@@ -203,7 +214,7 @@ export class Room extends EventEmitter{
                     throw Error (error);
                 }
 
-                logger.info(`peer ${peer.id} joined!`);
+                logger.info(`Join : ${peer.id}!`);
 
                 peer.setPeerInfo({
                     displayName : displayName,
@@ -248,7 +259,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.createTransport :
             {
-                logger.info(`Create Transport ${peer.id}`);
+                logger.info(`Create Transport : ${peer.id}`);
                 const {sctpCapabilities, transportType} = request.data
 
                 if (transportType !== 'consumer' && transportType !== 'producer') {
@@ -288,7 +299,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.connectWebRtcTransport :
             {
-                logger.info(`Connect Transport ${peer.id}`);
+                logger.info(`Connect Transport : ${peer.id}`);
                 const {transportId, dtlsParameters} = request.data;
 
                 const transport = peer.getTransport(transportId);
@@ -299,7 +310,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.produce :
             {
-                logger.info(`Produce ${peer.id}`);
+                logger.info(`Produce : ${peer.id}`);
                 const {transportId, kind, rtpParameters} = request.data;
                 let {appData} = request.data;
                 const transport = peer.getTransport(transportId);
@@ -324,7 +335,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.produceData :
             {
-                logger.info(`Produce Data ${peer.id}`);
+                logger.info(`Produce Data : ${peer.id}`);
 
                 const {transportId, sctpStreamParameters, protocol} = request.data;
 
@@ -369,7 +380,7 @@ export class Room extends EventEmitter{
                     throw new Error(error);
                 }
 
-                logger.info(`close producer, peer id : ${peer.id}, producer id : ${producerId}`);
+                logger.info(`Close producer : peer ${peer.id}, producer ${producerId}`);
 
                 producer.close();
                 peer.deleteProducer(producer.id);
@@ -387,7 +398,7 @@ export class Room extends EventEmitter{
                     throw new Error(error);
                 }
 
-                logger.info(`pause producer, peer id : ${peer.id}, producer id : ${producerId}`);
+                logger.info(`Pause producer : peer ${peer.id}, producer ${producerId}`);
 
                 await producer.pause();
                 callback();
@@ -404,7 +415,7 @@ export class Room extends EventEmitter{
                     throw new Error(error);
                 }
 
-                logger.info(`resume producer, peer id : ${peer.id}, producer id : ${producerId}`);
+                logger.info(`Resume producer : peer ${peer.id}, producer ${producerId}`);
 
                 await producer.resume();
                 callback();
@@ -421,7 +432,7 @@ export class Room extends EventEmitter{
                     throw new Error(error);
                 }
 
-                logger.info(`pause consumer, peer id : ${peer.id}, consumer id : ${consumerId}`);
+                logger.info(`Pause consumer : peer ${peer.id}, consumer ${consumerId}`);
 
                 await consumer.pause();
 
@@ -439,7 +450,7 @@ export class Room extends EventEmitter{
                     throw new Error(error);
                 }
 
-                logger.info(`resume consumer, peer id : ${peer.id}, consumer id : ${consumerId}`);
+                logger.info(`Resume consumer : peer ${peer.id}, consumer ${consumerId}`);
 
                 await consumer.resume();
 
@@ -448,6 +459,8 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.close :
             {
+                logger.info(`Exit : ${peer.id}!`);
+                callback();
                 peer.close();
                 break;
             }

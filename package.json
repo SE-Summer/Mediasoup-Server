@@ -17,6 +17,7 @@
   "dependencies": {
     "events": "^3.3.0",
     "express": "^4.17.1",
+    "log4js": "^6.3.0",
     "mediasoup": "^3.7.18",
     "moment": "^2.29.1",
     "nodemailer": "^6.6.3",

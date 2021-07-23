@@ -7,6 +7,7 @@ const mediasoup = require('mediasoup');
 const config = require('./config/config.js')
 const app = express();
 const httpServer = createServer(app);
+const {logger} = require('./lib/global');
 
 let worker;
 mediasoup.createWorker({
@@ -19,7 +20,7 @@ mediasoup.createWorker({
 });
 
 
-let rooms = new Map()
+let rooms = new Map();
 
 const io = new Server(httpServer, {
 
@@ -32,7 +33,7 @@ io.of('/room').on("connection", async (socket)=>{
 })
 
 
-httpServer.listen(4446, function () { console.log('Listening on port 4446') })
+httpServer.listen(4446, function () { logger.info('Listening on port 4446') });
 
 async function getOrCreateRoom({ roomId })
 {
@@ -45,10 +46,9 @@ async function getOrCreateRoom({ roomId })
         room = await Room.create({ worker, roomId });
 
         rooms.set(roomId, room);
-        console.log("[RoomList]", rooms.keys())
         room.on('close', () => {
             rooms.delete(roomId);
-            console.log(`room [${roomId}] closed!`);
+            logger.info(`room [${roomId}] closed!`);
         });
     }
 

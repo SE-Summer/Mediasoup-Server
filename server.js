@@ -43,8 +43,8 @@ var express = require("express");
 var mediasoup = require('mediasoup');
 var config = require('./config/config.js');
 var app = express();
-app.use(express.json());
 var httpServer = http_1.createServer(app);
+var logger = require('./lib/global').logger;
 var worker;
 mediasoup.createWorker({
     logLevel: config.mediasoup.workerSettings.logLevel,
@@ -70,7 +70,7 @@ io.of('/room').on("connection", function (socket) { return __awaiter(void 0, voi
         }
     });
 }); });
-httpServer.listen(4446, function () { console.log('Listening on port 4446'); });
+httpServer.listen(4446, function () { logger.info('Listening on port 4446'); });
 function getOrCreateRoom(_a) {
     var roomId = _a.roomId;
     return __awaiter(this, void 0, void 0, function () {
@@ -85,8 +85,10 @@ function getOrCreateRoom(_a) {
                     //logger.info('creating a new Room [roomId:%s]', roomId);
                     room = _b.sent();
                     rooms.set(roomId, room);
-                    console.log("[RoomList]", rooms.keys());
-                    room.on('close', function () { return rooms["delete"](roomId); });
+                    room.on('close', function () {
+                        rooms["delete"](roomId);
+                        logger.info("room [" + roomId + "] closed!");
+                    });
                     _b.label = 2;
                 case 2: return [2 /*return*/, room];
             }

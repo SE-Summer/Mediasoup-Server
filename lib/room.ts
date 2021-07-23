@@ -5,13 +5,14 @@ import {Socket} from "socket.io";
 import {types as MTypes} from 'mediasoup';
 
 const EventEmitter = require('events').EventEmitter;
-const config = require('../config/config')
+const config = require('../config/config');
+const {logger} = require('./global');
 
 
 export class Room extends EventEmitter{
     static async create({ worker, roomId })
     {
-        console.log('[Creating Room] roomId:%s', roomId);
+        logger.info(`Create Room ${roomId}`);
 
         const { mediaCodecs } = config.mediasoup.routerOptions;
 
@@ -62,7 +63,7 @@ export class Room extends EventEmitter{
         }
 
         if (!consumerPeer.getPeerInfo().rtpCapabilities) {
-            throw new Error('peer does not have rtpCapabilities');
+            throw new Error(`peer ${consumerPeer.id} does not have rtpCapabilities`);
         }
 
         if (!this._router.canConsume({
@@ -72,7 +73,7 @@ export class Room extends EventEmitter{
             throw new Error(`Can not consume peer : ${producerPeer.id} 's producer : ${producer.id} : `);
         }
 
-        console.log(`create consumer of ${producerPeer.id} for ${consumerPeer.id}`);
+        logger.info(`create consumer of ${producerPeer.id} for ${consumerPeer.id}`);
 
         const consumer = await consumerPeer.getConsumerTransport().consume(
             {
@@ -114,7 +115,7 @@ export class Room extends EventEmitter{
             throw new Error(`peer with id "${consumerPeer.id}" does not exist`);
         }
 
-        console.log(`create data consumer of ${producerPeer.id} for ${consumerPeer.id}`);
+        logger.info(`create data consumer of ${producerPeer.id} for ${consumerPeer.id}`);
 
         const dataConsumer = await producerPeer.getConsumerTransport().consumeData({
             dataProducerId : dataProducer.id
@@ -122,7 +123,7 @@ export class Room extends EventEmitter{
 
         consumerPeer.setDataConsumer(dataConsumer.id, dataConsumer);
 
-        dataConsumer.on('transportclose', () => {
+        dataConsumer.on("transportclose", () => {
             consumerPeer.deleteDataConsumer(dataConsumer.id);
         })
 
@@ -148,10 +149,12 @@ export class Room extends EventEmitter{
     handleConnection(peerId, socket){
         let peer = new PeerImpl(peerId, socket);
 
+        this._peers.set(peerId, peer);
+
         socket.on('request', (request, callback) => {
             this._handleRequest(peer, request, callback)
                 .catch((error) => {
-                    console.log('"request failed [error:"%o"]"', error);
+                    logger.warn(`request failed [${error}]`);
 
                     callback(error, {});
                 })
@@ -161,14 +164,16 @@ export class Room extends EventEmitter{
             if (this._closed) {
                 return;
             }
-            this._notify(socket, 'peerClose', {
+            this._notify(socket, 'peerClosed', {
                 peerId : peerId
             },true);
+            logger.info(`Peer ${peerId} closed`);
+
             this._peers.delete(peerId);
             peer.socket.leave(this._roomId);
             peer.socket.disconnect(true);
 
-            if (this._peer.length === 0) {
+            if (this._peers.size === 0) {
                 this.close();
             }
         })
@@ -186,10 +191,19 @@ export class Room extends EventEmitter{
             {
                 const {displayName, joined, device, rtpCapabilities, sctpCapabilities} = request.data;
 
-                if (joined) {
-                    callback('Client is already joined!',);
-                    break;
+                if (!rtpCapabilities) {
+                    let error = `peer ${peer.id} does not have rtpCapabilities!`;
+                    callback(error)
+                    throw Error (error);
                 }
+
+                if (joined) {
+                    let error = `peer ${peer.id} is already joined`;
+                    callback(error);
+                    throw Error (error);
+                }
+
+                logger.info(`peer ${peer.id} joined!`);
 
                 peer.setPeerInfo({
                     displayName : displayName,
@@ -234,7 +248,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.createTransport :
             {
-                console.log("[Create Transport] peerId:%s", peer.id)
+                logger.info(`Create Transport ${peer.id}`);
                 const {sctpCapabilities, transportType} = request.data
 
                 if (transportType !== 'consumer' && transportType !== 'producer') {
@@ -257,6 +271,11 @@ export class Room extends EventEmitter{
 
                 peer.setTransport(transport.id, transport);
 
+                transport.on('routerclose', () => {
+                    peer.deleteTransport(transport.id);
+                    logger.info(`transport ${transport.id} closed because of router closed!`);
+                })
+
                 callback(null,
                     {
                         id             : transport.id,
@@ -269,7 +288,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.connectWebRtcTransport :
             {
-                console.log("[Connect Transport] peerId:%s", peer.id)
+                logger.info(`Connect Transport ${peer.id}`);
                 const {transportId, dtlsParameters} = request.data;
 
                 const transport = peer.getTransport(transportId);
@@ -280,7 +299,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.produce :
             {
-                console.log("[Produce] peerId:%s", peer.id)
+                logger.info(`Produce ${peer.id}`);
                 const {transportId, kind, rtpParameters} = request.data;
                 let {appData} = request.data;
                 const transport = peer.getTransport(transportId);
@@ -305,7 +324,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.produceData :
             {
-                console.log(`[Data Producer] : peerId : ${peer.id}`);
+                logger.info(`Produce Data ${peer.id}`);
 
                 const {transportId, sctpStreamParameters, protocol} = request.data;
 
@@ -346,11 +365,11 @@ export class Room extends EventEmitter{
 
                 if (!producer) {
                     let error = `producer with id "${producerId}" not found`;
-                    console.log(error);
                     callback(error, {});
+                    throw new Error(error);
                 }
 
-                console.log('close producer, peer id : %s, producer id : %s', peer.id, producerId);
+                logger.info(`close producer, peer id : ${peer.id}, producer id : ${producerId}`);
 
                 producer.close();
                 peer.deleteProducer(producer.id);
@@ -364,11 +383,11 @@ export class Room extends EventEmitter{
 
                 if (!producer) {
                     let error = `producer with id "${producerId}" not found`;
-                    console.log(error);
                     callback(error, {});
+                    throw new Error(error);
                 }
 
-                console.log('pause producer, peer id : %s, producer id : %s', peer.id, producerId);
+                logger.info(`pause producer, peer id : ${peer.id}, producer id : ${producerId}`);
 
                 await producer.pause();
                 callback();
@@ -381,11 +400,11 @@ export class Room extends EventEmitter{
 
                 if (!producer) {
                     let error = `producer with id "${producerId}" not found`;
-                    console.log(error);
                     callback(error, {});
+                    throw new Error(error);
                 }
 
-                console.log('resume producer, peer id : %s, producer id : %s', peer.id, producerId);
+                logger.info(`resume producer, peer id : ${peer.id}, producer id : ${producerId}`);
 
                 await producer.resume();
                 callback();
@@ -398,11 +417,11 @@ export class Room extends EventEmitter{
 
                 if (!consumer){
                     let error = `consumer with id "${consumerId}" not found`;
-                    console.log(error);
                     callback(error, {});
+                    throw new Error(error);
                 }
 
-                console.log('pause consumer, peer id : %s, consumer id : %s', peer.id, consumerId);
+                logger.info(`pause consumer, peer id : ${peer.id}, consumer id : ${consumerId}`);
 
                 await consumer.pause();
 
@@ -416,11 +435,11 @@ export class Room extends EventEmitter{
 
                 if (!consumer){
                     let error = `consumer with id "${consumerId}" not found`;
-                    console.log(error);
                     callback(error, {});
+                    throw new Error(error);
                 }
 
-                console.log('resume consumer, peer id : %s, consumer id : %s', peer.id, consumerId);
+                logger.info(`resume consumer, peer id : ${peer.id}, consumer id : ${consumerId}`);
 
                 await consumer.resume();
 
@@ -434,7 +453,9 @@ export class Room extends EventEmitter{
             }
             default :
             {
-                callback('Unknown Request!',);
+                let error = `Unknown Request ${request.method}`;
+                callback(error);
+                throw new Error(error);
             }
         }
     }
@@ -492,7 +513,7 @@ export class Room extends EventEmitter{
     }
 
     close () {
-        console.log(`Room ${this._roomId} closed.`);
+        logger.info(`Room ${this._roomId} closed.`);
         this._closed = true;
 
         this._peers.forEach((peer) => {

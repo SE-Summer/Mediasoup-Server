@@ -28,7 +28,7 @@ var DB = /** @class */ (function () {
         });
     };
     DB.prototype.getRooms = function (token, callback) {
-        this._connection.query('select r.id, r.token, r.password, r.host, r.end_time, r.start_time, r.topic, r.max_num from rooms r, users u where u.id = r.host and u.token="' + token + '"', function (err, rows) {
+        this._connection.query('select r.id, r.token, r.password, r.host, r.end_time, r.start_time, r.topic, r.max_num from rooms r, users u where u.id = r.host and u.token="' + token + '" order by r.start_time desc', function (err, rows) {
             if (err) {
                 console.log('[SQL_SELECT_ERROR] ', err.message);
                 callback('SSE', null);

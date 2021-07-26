@@ -47,6 +47,7 @@ var multer = require('multer');
 var config = require('./config/config.js');
 var app = express();
 var mysqlDB = new mysql_1.DB();
+var logger = require('./lib/global').logger;
 app.use(express.json());
 app.use('/static', express.static('uploads'));
 app.use(multer({ dest: '/tmp/' }).array('file'));
@@ -273,8 +274,10 @@ function getOrCreateRoom(_a) {
                     //logger.info('creating a new Room [roomId:%s]', roomId);
                     room = _b.sent();
                     rooms.set(roomId, room);
-                    console.log("[RoomList]", rooms.keys());
-                    room.on('close', function () { return rooms["delete"](roomId); });
+                    room.on('close', function () {
+                        rooms["delete"](roomId);
+                        logger.info("room [" + roomId + "] closed!");
+                    });
                     _b.label = 2;
                 case 2: return [2 /*return*/, room];
             }

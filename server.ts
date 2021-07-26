@@ -10,6 +10,7 @@ const multer = require('multer')
 const config = require('./config/config.js');
 const app = express();
 const mysqlDB = new DB();
+const {logger} = require('./lib/global');
 
 app.use(express.json());
 app.use('/static', express.static('uploads'));
@@ -268,8 +269,10 @@ async function getOrCreateRoom({ roomId })
         room = await Room.create({ worker, roomId });
 
         rooms.set(roomId, room);
-        console.log("[RoomList]", rooms.keys())
-        room.on('close', () => rooms.delete(roomId));
+        room.on('close', () => {
+            rooms.delete(roomId);
+            logger.info(`room [${roomId}] closed!`);
+        });
     }
 
     return room;

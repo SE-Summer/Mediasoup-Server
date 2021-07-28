@@ -39,10 +39,200 @@ exports.__esModule = true;
 var http_1 = require("http");
 var socket_io_1 = require("socket.io");
 var room_1 = require("./lib/room");
+var mysql_1 = require("./mysql/mysql");
 var express = require("express");
 var mediasoup = require('mediasoup');
+var fs = require('fs');
+var multer = require('multer');
 var config = require('./config/config.js');
 var app = express();
+var mysqlDB = new mysql_1.DB();
+var logger = require('./lib/global').logger;
+app.use(express.json());
+app.use('/static', express.static('uploads'));
+app.use(multer({ dest: '/tmp/' }).array('file'));
+app.get('/users', function (req, res) {
+    mysqlDB.getUsers(function (rows) {
+        res.status(200).json({
+            "users": rows
+        });
+    });
+});
+app.post('/getReservations', function (req, res) {
+    console.log(req.body);
+    var token = req.body.token;
+    mysqlDB.getRooms(token, function (err, rows) {
+        res.status(200).json({
+            "rooms": rows
+        });
+    });
+});
+app.post('/register', function (req, res) {
+    console.log(req.body);
+    var _a = req.body, token = _a.token, nickname = _a.nickname, password = _a.password;
+    mysqlDB.register(token, nickname, password, function (err, ok) {
+        if (err) {
+            res.status(401).json({
+                "error": err
+            });
+        }
+        else {
+            res.status(200).json({
+                "status": "OK"
+            });
+        }
+    });
+});
+app.post('/verify', function (req, res) {
+    console.log(req.body);
+    var _a = req.body, email = _a.email, verify = _a.verify;
+    mysqlDB.verify(email, verify, function (err, token) {
+        if (err) {
+            res.status(401).json({
+                "error": err
+            });
+        }
+        else {
+            res.status(200).json({
+                "status": "OK",
+                "token": token
+            });
+        }
+    });
+});
+app.post('/email', function (req, res) {
+    console.log(req.body);
+    var email = req.body.email;
+    mysqlDB.sendEmail(email, function (err, ok) {
+        if (err) {
+            res.status(401).json({
+                "error": err
+            });
+        }
+        else {
+            res.status(200).json({});
+        }
+    });
+});
+app.post('/login', function (req, res) {
+    console.log(req.body);
+    var _a = req.body, email = _a.email, password = _a.password;
+    mysqlDB.login(email, password, function (err, rows) {
+        if (err) {
+            res.status(401).json({
+                "error": err
+            });
+        }
+        else if (rows.length === 0) {
+            res.status(401).json({
+                "error": "Unauthorized"
+            });
+        }
+        else {
+            res.status(200).json({
+                "user": rows[0]
+            });
+        }
+    });
+});
+app.post('/autoLogin', function (req, res) {
+    console.log(req.body);
+    var token = req.body.token;
+    mysqlDB.autoLogin(token, function (err, rows) {
+        if (err) {
+            res.status(401).json({
+                "error": err
+            });
+        }
+        else if (rows.length === 0) {
+            res.status(401).json({
+                "error": "Unauthorized"
+            });
+        }
+        else {
+            res.status(200).json({
+                "user": rows[0]
+            });
+        }
+    });
+});
+app.post('/getRoom', function (req, res) {
+    console.log(req.body);
+    var _a = req.body, id = _a.id, password = _a.password;
+    mysqlDB.getRoom(id, password, function (err, room) {
+        if (err) {
+            res.status(401).json({
+                "error": err,
+                "room": room
+            });
+        }
+        else {
+            res.status(200).json({
+                "room": room
+            });
+        }
+    });
+});
+app.post('/reserve', function (req, res) {
+    console.log(req.body);
+    var _a = req.body, token = _a.token, password = _a.password, topic = _a.topic, start_time = _a.start_time, end_time = _a.end_time, max_num = _a.max_num;
+    mysqlDB.appoint(token, password, start_time, end_time, max_num, topic, function (err, rows) {
+        if (err) {
+            res.status(401).json({
+                "error": err
+            });
+        }
+        else {
+            res.status(200).json({
+                "room": rows[0]
+            });
+        }
+    });
+});
+app.get('/portrait', function (req, res) {
+    console.log(req.query);
+    var token = req.query.token;
+    mysqlDB.getPortrait(token, function (err, rows) {
+        if (err) {
+            res.status(401).json({
+                "error": err
+            });
+        }
+        else {
+            res.status(200).json({
+                "path": rows
+            });
+        }
+    });
+});
+app.post('/portrait', function (req, res) {
+    var token = req.query.token;
+    var filename = require("string-random")(32) + '.' + req.files[0].mimetype.split('/')[1];
+    var des_file = "./uploads/portraits/" + filename; //文件名
+    console.log(des_file); // 上传的文件信息
+    fs.readFile(req.files[0].path, function (err, data) {
+        fs.writeFile(des_file, data, function (err) {
+            if (err) {
+                console.log(err);
+            }
+            else {
+                mysqlDB.savePortrait(token, '/static/portraits/' + filename, function (err, ok) {
+                    if (err) {
+                        res.status(401).json({
+                            "error": err
+                        });
+                    }
+                    else {
+                        res.status(200).json({
+                            "status": "OK",
+                            "filename": filename
+                        });
+                    }
+                });
+            }
+        });
+    });
+});
 var httpServer = http_1.createServer(app);
 var logger = require('./lib/global').logger;
 var worker;

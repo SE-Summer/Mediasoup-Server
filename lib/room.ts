@@ -203,6 +203,12 @@ export class Room extends EventEmitter{
                     throw Error (error);
                 }
 
+                if (!rtpCapabilities) {
+                    let error = `peer ${peer.id} does not have rtpCapabilities!`;
+                    callback(error)
+                    throw Error (error);
+                }
+
                 if (joined) {
                     let error = `peer ${peer.id} is already joined`;
                     callback(error);
@@ -221,6 +227,8 @@ export class Room extends EventEmitter{
                 } else {
                     logger.info(`Join : [Member] ${peer.id}!`);
                 }
+
+                logger.info(`Join : ${peer.id}!`);
 
                 peer.setPeerInfo({
                     displayName : displayName,

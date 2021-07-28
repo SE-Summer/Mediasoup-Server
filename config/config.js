@@ -1,7 +1,10 @@
+const os = require('os');
+
 module.exports =
 {
     mediasoup :
         {
+            workerNum : Object.keys(os.cpus()).length,
             workerSettings :
                 {
                         logLevel : 'warn',

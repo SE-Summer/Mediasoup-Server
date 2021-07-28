@@ -511,15 +511,20 @@ export class Room extends EventEmitter{
             case RequestMethod.close :
             {
                 if (this._host === peer && this._peers.size !== 1) {
-                    peer.close();
-                    const newHost = Array.from(this._peers.values())[0] as PeerImpl;
+                    let newHost;
+                    for (const _peer of this._peers) {
+                        if (_peer !== peer) {
+                            newHost = _peer;
+                            break;
+                        }
+                    }
                     logger.info(`Host ${peer.id} Exit, host transfer to ${newHost.id}`);
                     mysqlDB.setHost(newHost.id, this._roomId, (error, res) => {
                         if (res) {
                             this._host = newHost;
-                            this._notify(newHost.socket, 'hostChanged', {newHostId : newHost.id});
-                            this._notify(newHost.socket, 'hostChanged', {newHostId : newHost.id}, true);
+                            this._notify(peer.socket, 'hostChanged', {newHostId : newHost.id}, true);
                             callback();
+                            peer.close();
                         } else {
                             callback(error);
                             throw Error (error);

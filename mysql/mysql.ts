@@ -85,7 +85,7 @@ export class DB {
     }
 
     setHost(userToken, roomToken, callback){
-        const queryString = 'select * from users where token='+userToken;
+        const queryString = 'select * from users where token="'+userToken+'"';
         this._connection.query(
             queryString,
             (err, rows)=>{
@@ -97,7 +97,7 @@ export class DB {
                         callback('No Such User', null);
                     }else{
                         const id = rows[0].id;
-                        const queryString2 = 'update rooms set host='+id+' where token='+roomToken;
+                        const queryString2 = 'update rooms set host='+id+' where token="'+roomToken+'"';
                         this._connection.query(
                             queryString2,
                             (err, ok)=>{

@@ -56,21 +56,17 @@ export enum RequestMethod {
      */
     produce = 'produce',
 
-    /**
-     * @ev request
-     * @body {
-     *     subscribeId : id of subscribed peer
-     * }
-     * @response subscribedInfo : information of subscribed peer
-     */
-    consume = 'consume',
     produceData = 'produceData',
     closeProducer = 'closeProducer',
     pauseProducer = 'pauseProducer',
     resumeProducer = 'resumeProducer',
     pauseConsumer = 'pauseConsumer',
     resumeConsumer = 'resumeConsumer',
-    close = 'close'
+    sendMessage = 'sendMessage',
+    close = 'close',
+    kick = 'kick',
+    mute = 'mute',
+    transferHost = 'transferHost'
 }
 
 export let logger = require('log4js').getLogger();

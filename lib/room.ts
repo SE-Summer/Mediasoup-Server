@@ -18,13 +18,6 @@ export class Room extends EventEmitter{
 
         const router = await worker.createRouter({ mediaCodecs });
 
-        // const audioLevelObserver = await router.createAudioLevelObserver(
-        //     {
-        //         maxEntries : 1,
-        //         threshold  : -80,
-        //         interval   : 800
-        //     });
-
         return new Room(
             {
                 roomId,
@@ -44,6 +37,8 @@ export class Room extends EventEmitter{
         this._router = router;
 
         this._peers = new Map<String, Peer>();
+
+        this._host = null;
     }
 
     _getJoinedPeers({ excludePeer = undefined } = {})
@@ -200,7 +195,13 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.join :
             {
-                const {displayName, joined, device, rtpCapabilities, sctpCapabilities} = request.data;
+                const {displayName, joined, device, host, rtpCapabilities, sctpCapabilities} = request.data;
+
+                if (!rtpCapabilities) {
+                    let error = `peer ${peer.id} does not have rtpCapabilities!`;
+                    callback(error);
+                    throw Error (error);
+                }
 
                 if (!rtpCapabilities) {
                     let error = `peer ${peer.id} does not have rtpCapabilities!`;
@@ -212,6 +213,19 @@ export class Room extends EventEmitter{
                     let error = `peer ${peer.id} is already joined`;
                     callback(error);
                     throw Error (error);
+                }
+
+                if (host && this._host !== null) {
+                    let error = `Host existed!`;
+                    callback(error);
+                    throw Error (error);
+                }
+
+                if (host) {
+                    logger.info(`Join : [Host] ${peer.id}`);
+                    this._host = peer;
+                } else {
+                    logger.info(`Join : [Member] ${peer.id}!`);
                 }
 
                 logger.info(`Join : ${peer.id}!`);
@@ -457,11 +471,119 @@ export class Room extends EventEmitter{
                 callback();
                 break;
             }
+            case RequestMethod.sendMessage :
+            {
+                const {toPeerId, text} = request.data;
+
+                const recvPeer = this._peers.get(toPeerId);
+
+                if (!recvPeer) {
+                    let error = `receive peer ${toPeerId} does NOT exist!`;
+                    callback(error);
+                    throw Error (error);
+                }
+
+                let message = {
+                    fromPeerId : peer.id,
+                    broadcast : true,
+                    text : text
+                }
+
+                if (toPeerId === undefined) {
+                    logger.info(`SendMessage : peer ${peer.id} broadcast message`);
+                    this._notify(peer.socket, 'newMessage', message, true);
+                } else {
+                    logger.info(`SendMessage : peer ${peer.id} send message to ${toPeerId}`);
+                    message.broadcast = false;
+                    this._notify(recvPeer.socket, 'newMessage', message);
+                }
+                break;
+            }
             case RequestMethod.close :
             {
                 logger.info(`Exit : ${peer.id}!`);
                 callback();
                 peer.close();
+                break;
+            }
+            case RequestMethod.kick :
+            {
+                const {kickedPeerId} = request.data;
+
+                if (peer !== this._host) {
+                    let error = `Peer ${peer.id} is not the HOST!`;
+                    callback(error);
+                    throw Error (error);
+                }
+
+                logger.info(`Kick : ${kickedPeerId}`);
+
+                let kickedPeer = this._peers.get(kickedPeerId);
+
+                kickedPeer.close();
+                callback();
+                break;
+            }
+            case RequestMethod.mute :
+            {
+                const {mutedPeerId} = request.data;
+
+                if (mutedPeerId === `all`) {
+                    logger.info(`Mute : mute all members except host`);
+
+                    for (const peer of this._peers) {
+                        if (peer !== this._host) {
+                            for (const audio of peer.getAllAudioProducer()) {
+                                this._notify(peer.socket, 'beMuted');
+                                await audio.pause();
+                            }
+                        }
+                    }
+                }
+
+                const mutedPeer = this._peers.get(mutedPeerId);
+
+                if (!mutedPeer) {
+                    let error = `peer ${mutedPeerId} does NOT exist!`;
+                    callback(error);
+                    throw Error (error);
+                }
+
+                logger.info(`Mute : peer ${peer.id} is muted.`);
+
+                for (const audio of mutedPeer.getAllAudioProducer()) {
+                    this._notify(peer.socket, 'muted');
+                    await audio.pause();
+                }
+
+                callback();
+
+                break;
+            }
+            case RequestMethod.transferHost :
+            {
+                const {hostId} = request.data;
+
+                if (peer !== this._host) {
+                    let error = `peer ${peer.id} is not the HOST`;
+                    callback(error);
+                    throw Error (error);
+                }
+
+                let newHost = this._peers.get(hostId);
+
+                if (!newHost) {
+                    let error = `peer ${hostId} is NOT exist`;
+                    callback(error);
+                    throw Error (error);
+                }
+
+                logger.info(`TransferHost : transfer host from ${peer.id} to ${hostId}`);
+
+                this._host = newHost;
+                this._notify(newHost.socket, 'beHost');
+                callback();
+
                 break;
             }
             default :

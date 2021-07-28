@@ -47,6 +47,43 @@ export class DB {
         )
     }
 
+    isHost(userToken, roomToken, callback){
+        const queryString = 'select * from rooms where token='+roomToken;
+        this._connection.query(
+            queryString,
+            (err, rows)=>{
+                if(err){
+                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    callback('SSE', null)
+                }else{
+                    if (rows.length === 0){
+                        callback('No Such Room', null);
+                    }else{
+                        const host = rows[0].host;
+                        const queryString2 = 'select * from users where token='+userToken;
+                        this._connection.query(
+                            queryString2,
+                            (err, rows)=>{
+                                if(err){
+                                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                                    callback('SSE', null)
+                                }else{
+                                    if (rows.length === 0){
+                                        callback('No Such User', null);
+                                    }else if (rows[0].id === host){
+                                        callback(null, true);
+                                    }else{
+                                        callback(null, false);
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        )
+    }
+
     register(token, nickname, password, callback){
         const queryString = 'update users set nickname="'+ nickname +'", password="'+password+'", verify=null where token="'+token+'"';
         this._connection.query(
@@ -277,5 +314,35 @@ export class DB {
                 }
             }
         )
+    }
+
+    saveFile(token, roomId, path, callback){
+        this._connection.query(
+            'select users.portrait from users where token="'+token+'"',
+            (err, rows)=>{
+                if(err){
+                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    callback('SSE', null)
+                }else{
+                    if (rows.length === 0){
+                        callback("Wrong Token", null);
+                    }else{
+                        const queryString = 'insert into files set path="'+path+'", owner='+rows[0].id+', room='+roomId;
+                        this._connection.query(
+                            queryString,
+                            (err, ok)=>{
+                                if(err){
+                                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                                    callback('SSE', null);
+                                }else {
+                                    callback(null, ok);
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        )
+
     }
 }

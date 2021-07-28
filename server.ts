@@ -231,6 +231,37 @@ app.post(
     }
 )
 
+app.post(
+    'file',
+    (req, res)=> {
+        const token = req.query.token
+        const roomId = req.query.roomId
+        let filename = require("string-random")(32) + '.' + req.files[0].mimetype.split('/')[1];
+        let des_file = "./uploads/files/" + filename; //文件名
+        console.log(roomId, des_file);  // 上传的文件信息
+        fs.readFile(req.files[0].path, function (err, data) {  // 异步读取文件内容
+            fs.writeFile(des_file, data, function (err) { // des_file是文件名，data，文件数据，异步写入到文件
+                if (err) {
+                    console.log(err);
+                } else {
+                    mysqlDB.saveFile(token, roomId, '/static/files/' + filename, (err, ok) => {
+                        if (err) {
+                            res.status(401).json({
+                                "error": err
+                            })
+                        } else {
+                            res.status(200).json({
+                                "status": "OK",
+                                "filename": filename
+                            })
+                        }
+                    });
+                }
+            });
+        });
+    }
+)
+
 const httpServer = createServer(app);
 
 let worker;

@@ -12,7 +12,7 @@ export class DB {
         this._connection = mysql.createConnection({
             host: 'localhost',
             user: 'root',
-            password: '655566',
+            password: '20010127CL',
             database: 'test'
         });
 
@@ -48,7 +48,7 @@ export class DB {
     }
 
     isHost(userToken, roomToken, callback){
-        const queryString = 'select * from rooms where token='+roomToken;
+        const queryString = 'select * from rooms where token="'+roomToken+'"';
         this._connection.query(
             queryString,
             (err, rows)=>{
@@ -60,7 +60,7 @@ export class DB {
                         callback('No Such Room', null);
                     }else{
                         const host = rows[0].host;
-                        const queryString2 = 'select * from users where token='+userToken;
+                        const queryString2 = 'select * from users where token="'+userToken+'"';
                         this._connection.query(
                             queryString2,
                             (err, rows)=>{
@@ -74,6 +74,41 @@ export class DB {
                                         callback(null, true);
                                     }else{
                                         callback(null, false);
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        )
+    }
+
+    setHost(userToken, roomToken, callback){
+        const queryString = 'select * from users where token='+userToken;
+        this._connection.query(
+            queryString,
+            (err, rows)=>{
+                if(err){
+                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    callback('SSE', null)
+                }else{
+                    if (rows.length === 0){
+                        callback('No Such User', null);
+                    }else{
+                        const id = rows[0].id;
+                        const queryString2 = 'update rooms set host='+id+' where token='+roomToken;
+                        this._connection.query(
+                            queryString2,
+                            (err, ok)=>{
+                                if(err){
+                                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                                    callback('SSE', null)
+                                }else{
+                                    if (ok.changedRows === 0){
+                                        callback('No Such Room', null);
+                                    }else{
+                                        callback(null, true);
                                     }
                                 }
                             }
@@ -201,7 +236,7 @@ export class DB {
         if(start_time >= end_time){
             callback("Invalid End Time", null);
             return;
-        }else if (moment(start_time).format('YYYY-MM-DD HH:mm') < moment().format('YYYY-MM-DD HH:mm')){
+        }else if (moment(start_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm') < moment().format('YYYY-MM-DD HH:mm')){
             callback("Invalid Start Time", null);
             return;
         }
@@ -260,8 +295,8 @@ export class DB {
                 }else{
                     const room = rows[0];
                     if(room){
-                        room.start_time = moment(room.start_time).format('YYYY-MM-DD HH:mm');
-                        room.end_time = moment(room.end_time).format('YYYY-MM-DD HH:mm');
+                        room.start_time = moment(room.start_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm');
+                        room.end_time = moment(room.end_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm');
                         const now_time = moment().format('YYYY-MM-DD HH:mm');
                         if(room.password === password){
                             if(room.start_time > now_time || room.end_time < now_time){

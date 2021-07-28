@@ -3,11 +3,12 @@ import {Peer} from './peer';
 import {RequestMethod} from "./global";
 import {Socket} from "socket.io";
 import {types as MTypes} from 'mediasoup';
+import {DB} from '../mysql/mysql'
 
 const EventEmitter = require('events').EventEmitter;
 const config = require('../config/config');
 const {logger} = require('./global');
-
+const mysqlDB = new DB();
 
 export class Room extends EventEmitter{
     static async create({ worker, roomId })
@@ -79,12 +80,12 @@ export class Room extends EventEmitter{
         consumerPeer.setConsumer(consumer.id, consumer);
 
         consumer.on('transportclose', () => {
-            logger.info(`Consumer of peer ${consumerPeer.id} Closed because of transport closed!`);
+            logger.info(`Consumer of peer ${consumerPeer.id} Closed because of transport closed`);
             consumerPeer.deleteConsumer(consumer.id);
         });
 
         consumer.on('producerclose', () => {
-            logger.info(`Consumer of peer ${consumerPeer.id} Closed because of producer of peer ${producerPeer.id} closed!`);
+            logger.info(`Consumer of peer ${consumerPeer.id} Closed because of producer of peer ${producerPeer.id} closed`);
             consumerPeer.deleteConsumer(consumer.id);
             this._notify(consumerPeer.socket, 'consumerClosed', {consumerId : consumer.id});
         });
@@ -195,7 +196,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.join :
             {
-                const {displayName, joined, device, host, rtpCapabilities, sctpCapabilities} = request.data;
+                const {displayName, joined, device, rtpCapabilities, sctpCapabilities} = request.data;
 
                 if (!rtpCapabilities) {
                     let error = `peer ${peer.id} does not have rtpCapabilities!`;
@@ -215,66 +216,72 @@ export class Room extends EventEmitter{
                     throw Error (error);
                 }
 
-                if (host && this._host !== null) {
-                    let error = `Host existed!`;
-                    callback(error);
-                    throw Error (error);
-                }
+                let host = false;
 
-                if (host) {
-                    logger.info(`Join : [Host] ${peer.id}`);
-                    this._host = peer;
-                } else {
-                    logger.info(`Join : [Member] ${peer.id}!`);
-                }
+                mysqlDB.isHost(peer.id, this._roomId, async (error, res) => {
+                    if (error) {
+                        callback(error);
+                        throw Error (error);
+                    }
+                    else {
+                        host = res;
 
-                logger.info(`Join : ${peer.id}!`);
+                        if (host) {
+                            logger.info(`Join : [Host] ${peer.id}`);
+                            this._host = peer;
+                        } else {
+                            logger.info(`Join : [Member] ${peer.id}!`);
+                        }
 
-                peer.setPeerInfo({
-                    displayName : displayName,
-                    joined : true,
-                    closed : false,
-                    device : device,
-                    rtpCapabilities : rtpCapabilities,
-                    sctpCapabilities : sctpCapabilities
-                });
+                        peer.setPeerInfo({
+                            displayName : displayName,
+                            joined : true,
+                            closed : false,
+                            device : device,
+                            rtpCapabilities : rtpCapabilities,
+                            sctpCapabilities : sctpCapabilities
+                        });
 
-                this._notify(peer.socket, 'newPeer', {
-                    id : peer.id,
-                    displayName : displayName,
-                    device : device
-                }, true);
+                        this._notify(peer.socket, 'newPeer', {
+                            id : peer.id,
+                            displayName : displayName,
+                            device : device
+                        }, true);
 
-                peer.socket.join(this._roomId);
-                this._peers.set(peer.id, peer);
+                        peer.socket.join(this._roomId);
+                        this._peers.set(peer.id, peer);
 
-                const joinedPeers = this._getJoinedPeers({excludePeer : peer});
-                const peerInfos = [];
+                        const joinedPeers = this._getJoinedPeers({excludePeer : peer});
+                        const peerInfos = [];
 
-                joinedPeers.forEach((joinedPeer) => {
-                    peerInfos.push({
-                        id : joinedPeer.id,
-                        displayName : joinedPeer.displayName,
-                        device : joinedPeer.device
-                    });
+                        joinedPeers.forEach((joinedPeer) => {
+                            peerInfos.push({
+                                id : joinedPeer.id,
+                                displayName : joinedPeer.displayName,
+                                device : joinedPeer.device
+                            });
 
-                    joinedPeer.getAllProducer().forEach((producer) => {
-                        this.createConsumer(peer, joinedPeer, producer);
-                    });
+                            joinedPeer.getAllProducer().forEach((producer) => {
+                                this.createConsumer(peer, joinedPeer, producer);
+                            });
 
-                    joinedPeer.getAllDataProducer().forEach((dataProducer) => {
-                        this.createDataConsumer(peer, joinedPeer, dataProducer);
-                    })
+                            joinedPeer.getAllDataProducer().forEach((dataProducer) => {
+                                this.createDataConsumer(peer, joinedPeer, dataProducer);
+                            })
+                        })
+
+                        callback(null, {
+                            host : this._host.id,
+                            peerInfos
+                        });
+                    }
                 })
-
-                callback(null, peerInfos);
-
                 break;
             }
             case RequestMethod.createTransport :
             {
-                logger.info(`Create Transport : ${peer.id}`);
-                const {sctpCapabilities, transportType} = request.data
+                const {sctpCapabilities, transportType} = request.data;
+                logger.info(`Create ${transportType} Transport : peer ${peer.id}`);
 
                 if (transportType !== 'consumer' && transportType !== 'producer') {
                     callback('transport type ERROR!', {sendType : transportType});
@@ -313,10 +320,12 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.connectWebRtcTransport :
             {
-                logger.info(`Connect Transport : ${peer.id}`);
                 const {transportId, dtlsParameters} = request.data;
 
                 const transport = peer.getTransport(transportId);
+
+                logger.info(`Connect ${transport.appData.transportType} Transport : peer ${peer.id}`);
+
                 await transport.connect({dtlsParameters});
 
                 callback(null, {});
@@ -324,7 +333,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.produce :
             {
-                logger.info(`Produce : ${peer.id}`);
+                logger.info(`Produce : peer ${peer.id}`);
                 const {transportId, kind, rtpParameters} = request.data;
                 let {appData} = request.data;
                 const transport = peer.getTransport(transportId);
@@ -349,7 +358,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.produceData :
             {
-                logger.info(`Produce Data : ${peer.id}`);
+                logger.info(`Produce Data : peer ${peer.id}`);
 
                 const {transportId, sctpStreamParameters, protocol} = request.data;
 
@@ -501,6 +510,24 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.close :
             {
+                if (this._host === peer && this._peers.size !== 1) {
+                    peer.close();
+                    const newHost = Array.from(this._peers.values())[0] as PeerImpl;
+                    logger.info(`Host ${peer.id} Exit, host transfer to ${newHost.id}`);
+                    mysqlDB.setHost(newHost.id, this._roomId, (error, res) => {
+                        if (res) {
+                            this._host = newHost;
+                            this._notify(newHost.socket, 'hostChanged', {newHostId : newHost.id});
+                            this._notify(newHost.socket, 'hostChanged', {newHostId : newHost.id}, true);
+                            callback();
+                        } else {
+                            callback(error);
+                            throw Error (error);
+                        }
+                    });
+                    return;
+                }
+
                 logger.info(`Exit : ${peer.id}!`);
                 callback();
                 peer.close();
@@ -578,11 +605,18 @@ export class Room extends EventEmitter{
                     throw Error (error);
                 }
 
-                logger.info(`TransferHost : transfer host from ${peer.id} to ${hostId}`);
-
-                this._host = newHost;
-                this._notify(newHost.socket, 'beHost');
-                callback();
+                mysqlDB.setHost(hostId, this._roomId, (error, res) => {
+                   if (res) {
+                       logger.info(`TransferHost : transfer host from ${peer.id} to ${hostId}`);
+                       this._host = newHost;
+                       this._notify(newHost.socket, 'hostChanged', {newHostId : hostId});
+                       this._notify(newHost.socket, 'hostChanged', {newHostId : hostId}, true);
+                       callback();
+                   } else {
+                       callback(error);
+                       throw Error (error);
+                   }
+                });
 
                 break;
             }

@@ -11,7 +11,7 @@ var DB = /** @class */ (function () {
         this._connection = mysql.createConnection({
             host: 'localhost',
             user: 'root',
-            password: '655566',
+            password: '20010127CL',
             database: 'test'
         });
         this._connection.connect();
@@ -35,6 +35,75 @@ var DB = /** @class */ (function () {
             }
             else {
                 callback(null, rows);
+            }
+        });
+    };
+    DB.prototype.isHost = function (userToken, roomToken, callback) {
+        var _this = this;
+        var queryString = 'select * from rooms where token="' + roomToken + '"';
+        this._connection.query(queryString, function (err, rows) {
+            if (err) {
+                console.log('[SQL_SELECT_ERROR] ', err.message);
+                callback('SSE', null);
+            }
+            else {
+                if (rows.length === 0) {
+                    callback('No Such Room', null);
+                }
+                else {
+                    var host_1 = rows[0].host;
+                    var queryString2 = 'select * from users where token="' + userToken + '"';
+                    _this._connection.query(queryString2, function (err, rows) {
+                        if (err) {
+                            console.log('[SQL_SELECT_ERROR] ', err.message);
+                            callback('SSE', null);
+                        }
+                        else {
+                            if (rows.length === 0) {
+                                callback('No Such User', null);
+                            }
+                            else if (rows[0].id === host_1) {
+                                callback(null, true);
+                            }
+                            else {
+                                callback(null, false);
+                            }
+                        }
+                    });
+                }
+            }
+        });
+    };
+    DB.prototype.setHost = function (userToken, roomToken, callback) {
+        var _this = this;
+        var queryString = 'select * from users where token=' + userToken;
+        this._connection.query(queryString, function (err, rows) {
+            if (err) {
+                console.log('[SQL_SELECT_ERROR] ', err.message);
+                callback('SSE', null);
+            }
+            else {
+                if (rows.length === 0) {
+                    callback('No Such User', null);
+                }
+                else {
+                    var id = rows[0].id;
+                    var queryString2 = 'update rooms set host=' + id + ' where token=' + roomToken;
+                    _this._connection.query(queryString2, function (err, ok) {
+                        if (err) {
+                            console.log('[SQL_SELECT_ERROR] ', err.message);
+                            callback('SSE', null);
+                        }
+                        else {
+                            if (ok.changedRows === 0) {
+                                callback('No Such Room', null);
+                            }
+                            else {
+                                callback(null, true);
+                            }
+                        }
+                    });
+                }
             }
         });
     };
@@ -143,7 +212,7 @@ var DB = /** @class */ (function () {
             callback("Invalid End Time", null);
             return;
         }
-        else if (moment(start_time).format('YYYY-MM-DD HH:mm') < moment().format('YYYY-MM-DD HH:mm')) {
+        else if (moment(start_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm') < moment().format('YYYY-MM-DD HH:mm')) {
             callback("Invalid Start Time", null);
             return;
         }
@@ -195,8 +264,8 @@ var DB = /** @class */ (function () {
             else {
                 var room = rows[0];
                 if (room) {
-                    room.start_time = moment(room.start_time).format('YYYY-MM-DD HH:mm');
-                    room.end_time = moment(room.end_time).format('YYYY-MM-DD HH:mm');
+                    room.start_time = moment(room.start_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm');
+                    room.end_time = moment(room.end_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm');
                     var now_time = moment().format('YYYY-MM-DD HH:mm');
                     if (room.password === password) {
                         if (room.start_time > now_time || room.end_time < now_time) {
@@ -245,6 +314,32 @@ var DB = /** @class */ (function () {
             }
             else {
                 callback(null, ok);
+            }
+        });
+    };
+    DB.prototype.saveFile = function (token, roomId, path, callback) {
+        var _this = this;
+        this._connection.query('select users.portrait from users where token="' + token + '"', function (err, rows) {
+            if (err) {
+                console.log('[SQL_SELECT_ERROR] ', err.message);
+                callback('SSE', null);
+            }
+            else {
+                if (rows.length === 0) {
+                    callback("Wrong Token", null);
+                }
+                else {
+                    var queryString = 'insert into files set path="' + path + '", owner=' + rows[0].id + ', room=' + roomId;
+                    _this._connection.query(queryString, function (err, ok) {
+                        if (err) {
+                            console.log('[SQL_SELECT_ERROR] ', err.message);
+                            callback('SSE', null);
+                        }
+                        else {
+                            callback(null, ok);
+                        }
+                    });
+                }
             }
         });
     };

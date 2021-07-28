@@ -2,6 +2,7 @@ import {createServer} from "http"
 import {Server} from "socket.io"
 import {Room} from "./lib/room"
 import {DB} from "./mysql/mysql"
+import {request} from "express";
 
 const express = require("express");
 const mediasoup = require('mediasoup');
@@ -11,6 +12,11 @@ const config = require('./config/config.js');
 const app = express();
 const mysqlDB = new DB();
 const {logger} = require('./lib/global');
+const httpServer = createServer(app);
+
+let workers = [];
+let workerIter = 0;
+let rooms = new Map();
 
 app.use(express.json());
 app.use('/static', express.static('uploads'));
@@ -262,36 +268,47 @@ app.post(
     }
 )
 
-const httpServer = createServer(app);
-const {logger} = require('./lib/global');
-
-let workers = [];
-let workerIter = 0;
-let rooms = new Map();
-
 createWorkers();
 
 const io = new Server(httpServer, {
 
 })
 
-io.of('/room').on("connection", async (socket)=>{
+io.of('/room').on("connection", async (socket)=> {
     const {roomId, peerId} = socket.handshake.query;
-    const room = await getOrCreateRoom({roomId});
-    room.handleConnection(peerId, socket);
+
+    mysqlDB.isHost(peerId, roomId, async (error, res) => {
+        if (error) {
+            logger.warn(`room ${roomId} or peer ${peerId} is illegal!`);
+            socket.disconnect(true);
+            return;
+        } else {
+            const room = await getOrCreateRoom({roomId, host: res});
+            if (room == null) {
+                socket.disconnect(true);
+                return;
+            }
+            room.handleConnection(peerId, socket);
+        }
+    })
 })
 
 httpServer.listen(4446, function () { logger.info('Listening on port 4446') });
 
-async function getOrCreateRoom({ roomId })
+async function getOrCreateRoom({ roomId, host })
 {
     let room = rooms.get(roomId);
 
     // If the Room does not exist create a new one.
     if (!room)
     {
+        if (!host) {
+            logger.warn(`Host of room ${roomId} hasn't joined!`);
+            return null;
+        }
+
         //logger.info('creating a new Room [roomId:%s]', roomId);
-        const worker = this.getWorker();
+        let worker = getWorker();
         room = await Room.create({worker , roomId });
 
         rooms.set(roomId, room);
@@ -324,12 +341,12 @@ async function createWorkers () {
         })
 
         workers.push(worker);
-        setInterval(async () =>
-        {
-            const usage = await worker.getResourceUsage();
-
-            logger.info('mediasoup Worker resource usage [pid:%d]: %o', worker.pid, usage);
-        }, 120000);
+        // setInterval(async () =>
+        // {
+        //     const usage = await worker.getResourceUsage();
+        //
+        //     logger.info('mediasoup Worker resource usage [pid:%d]: %o', worker.pid, usage);
+        // }, 120000);
     }
 }
 

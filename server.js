@@ -48,6 +48,10 @@ var config = require('./config/config.js');
 var app = express();
 var mysqlDB = new mysql_1.DB();
 var logger = require('./lib/global').logger;
+var httpServer = http_1.createServer(app);
+var workers = [];
+var workerIter = 0;
+var rooms = new Map();
 app.use(express.json());
 app.use('/static', express.static('uploads'));
 app.use(multer({ dest: '/tmp/' }).array('file'));
@@ -233,46 +237,83 @@ app.post('/portrait', function (req, res) {
         });
     });
 });
-var httpServer = http_1.createServer(app);
-var logger = require('./lib/global').logger;
-var worker;
-mediasoup.createWorker({
-    logLevel: config.mediasoup.workerSettings.logLevel,
-    logTags: config.mediasoup.workerSettings.logTags,
-    rtcMinPort: Number(config.mediasoup.workerSettings.rtcMinPort),
-    rtcMaxPort: Number(config.mediasoup.workerSettings.rtcMaxPort)
-}).then(function (w) {
-    worker = w;
+app.post('file', function (req, res) {
+    var token = req.query.token;
+    var roomId = req.query.roomId;
+    var filename = require("string-random")(32) + '.' + req.files[0].mimetype.split('/')[1];
+    var des_file = "./uploads/files/" + filename; //文件名
+    console.log(roomId, des_file); // 上传的文件信息
+    fs.readFile(req.files[0].path, function (err, data) {
+        fs.writeFile(des_file, data, function (err) {
+            if (err) {
+                console.log(err);
+            }
+            else {
+                mysqlDB.saveFile(token, roomId, '/static/files/' + filename, function (err, ok) {
+                    if (err) {
+                        res.status(401).json({
+                            "error": err
+                        });
+                    }
+                    else {
+                        res.status(200).json({
+                            "status": "OK",
+                            "filename": filename
+                        });
+                    }
+                });
+            }
+        });
+    });
 });
-var rooms = new Map();
+createWorkers();
 var io = new socket_io_1.Server(httpServer, {});
 io.of('/room').on("connection", function (socket) { return __awaiter(void 0, void 0, void 0, function () {
-    var _a, roomId, peerId, room;
+    var _a, roomId, peerId;
     return __generator(this, function (_b) {
-        switch (_b.label) {
-            case 0:
-                _a = socket.handshake.query, roomId = _a.roomId, peerId = _a.peerId;
-                return [4 /*yield*/, getOrCreateRoom({ roomId: roomId })];
-            case 1:
-                room = _b.sent();
-                room.handleConnection(peerId, socket);
-                return [2 /*return*/];
-        }
+        _a = socket.handshake.query, roomId = _a.roomId, peerId = _a.peerId;
+        mysqlDB.isHost(peerId, roomId, function (error, res) { return __awaiter(void 0, void 0, void 0, function () {
+            var room;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        if (!error) return [3 /*break*/, 1];
+                        logger.warn("room " + roomId + " or peer " + peerId + " is illegal!");
+                        socket.disconnect(true);
+                        return [2 /*return*/];
+                    case 1: return [4 /*yield*/, getOrCreateRoom({ roomId: roomId, host: res })];
+                    case 2:
+                        room = _a.sent();
+                        if (room == null) {
+                            socket.disconnect(true);
+                            return [2 /*return*/];
+                        }
+                        room.handleConnection(peerId, socket);
+                        _a.label = 3;
+                    case 3: return [2 /*return*/];
+                }
+            });
+        }); });
+        return [2 /*return*/];
     });
 }); });
 httpServer.listen(4446, function () { logger.info('Listening on port 4446'); });
 function getOrCreateRoom(_a) {
-    var roomId = _a.roomId;
+    var roomId = _a.roomId, host = _a.host;
     return __awaiter(this, void 0, void 0, function () {
-        var room;
+        var room, worker;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
                     room = rooms.get(roomId);
                     if (!!room) return [3 /*break*/, 2];
+                    if (!host) {
+                        logger.warn("Host of room " + roomId + " hasn't joined!");
+                        return [2 /*return*/, null];
+                    }
+                    worker = getWorker();
                     return [4 /*yield*/, room_1.Room.create({ worker: worker, roomId: roomId })];
                 case 1:
-                    //logger.info('creating a new Room [roomId:%s]', roomId);
                     room = _b.sent();
                     rooms.set(roomId, room);
                     room.on('close', function () {
@@ -284,4 +325,59 @@ function getOrCreateRoom(_a) {
             }
         });
     });
+}
+function createWorkers() {
+    return __awaiter(this, void 0, void 0, function () {
+        var workerNum, _loop_1, i;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    workerNum = config.mediasoup.workerNum;
+                    logger.info("Running " + workerNum + " Workers...");
+                    _loop_1 = function (i) {
+                        var worker;
+                        return __generator(this, function (_b) {
+                            switch (_b.label) {
+                                case 0: return [4 /*yield*/, mediasoup.createWorker({
+                                        logLevel: config.mediasoup.workerSettings.logLevel,
+                                        logTags: config.mediasoup.workerSettings.logTags,
+                                        rtcMinPort: Number(config.mediasoup.workerSettings.rtcMinPort),
+                                        rtcMaxPort: Number(config.mediasoup.workerSettings.rtcMaxPort)
+                                    })];
+                                case 1:
+                                    worker = _b.sent();
+                                    worker.on('died', function () {
+                                        logger.error("Worker " + worker.pid + " DIED, exiting in 5 secs");
+                                        setTimeout(function () { return process.exit(1); }, 5000);
+                                    });
+                                    workers.push(worker);
+                                    return [2 /*return*/];
+                            }
+                        });
+                    };
+                    i = 0;
+                    _a.label = 1;
+                case 1:
+                    if (!(i < workerNum)) return [3 /*break*/, 4];
+                    return [5 /*yield**/, _loop_1(i)];
+                case 2:
+                    _a.sent();
+                    _a.label = 3;
+                case 3:
+                    ++i;
+                    return [3 /*break*/, 1];
+                case 4: return [2 /*return*/];
+            }
+        });
+    });
+}
+/**
+ * @extension : We can change the algorithm of allocating worker's workload
+ */
+function getWorker() {
+    var worker = workers[workerIter];
+    if (++workerIter === workers.length) {
+        workerIter = 0;
+    }
+    return worker;
 }

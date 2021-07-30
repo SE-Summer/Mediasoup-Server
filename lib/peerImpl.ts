@@ -7,6 +7,7 @@ export class PeerImpl extends EventEmitter implements Peer{
     public readonly id : string;
     public socket : socketio.Socket;
     private displayName : string;
+    private avatar : string;
     private joined : boolean = false;
     private closed : boolean = false;
     private device : object;
@@ -31,6 +32,7 @@ export class PeerImpl extends EventEmitter implements Peer{
         return {
             id : this.id,
             displayName : this.displayName,
+            avatar : this.avatar,
             joined : this.joined,
             closed : this.closed,
             device : this.device,
@@ -38,6 +40,7 @@ export class PeerImpl extends EventEmitter implements Peer{
             sctpCapabilities : this.sctpCapabilities
         };
     }
+
 
     getTransport (transportID:string) {
         if (this.transports.has(transportID)) {
@@ -113,19 +116,21 @@ export class PeerImpl extends EventEmitter implements Peer{
     }
 
     setPeerInfo({
-                    displayName, joined, closed, device, rtpCapabilities, sctpCapabilities
-    }: { displayName: any; joined: any; closed : any; device: any; rtpCapabilities: any; sctpCapabilities : any}) {
-        if (displayName !== undefined)
+                    displayName, avatar, joined, closed, device, rtpCapabilities, sctpCapabilities
+    }: { displayName: any; avatar : any; joined: any; closed : any; device: any; rtpCapabilities: any; sctpCapabilities : any}) {
+        if (displayName != undefined)
             this.displayName = displayName;
-        if (joined !== undefined)
+        if (avatar != undefined)
+            this.avatar = avatar;
+        if (joined != undefined)
             this.joined = joined
-        if (closed !== undefined)
+        if (closed != undefined)
             this.closed = closed
-        if (device !== undefined)
+        if (device != undefined)
             this.device = device
-        if (rtpCapabilities !== undefined)
+        if (rtpCapabilities != undefined)
             this.rtpCapabilities = rtpCapabilities
-        if (sctpCapabilities !== undefined)
+        if (sctpCapabilities != undefined)
             this.sctpCapabilities = sctpCapabilities
     }
 

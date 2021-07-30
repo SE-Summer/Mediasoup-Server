@@ -76,7 +76,7 @@ var DB = /** @class */ (function () {
     };
     DB.prototype.setHost = function (userToken, roomToken, callback) {
         var _this = this;
-        var queryString = 'select * from users where token=' + userToken;
+        var queryString = 'select * from users where token="' + userToken + '"';
         this._connection.query(queryString, function (err, rows) {
             if (err) {
                 console.log('[SQL_SELECT_ERROR] ', err.message);
@@ -88,7 +88,7 @@ var DB = /** @class */ (function () {
                 }
                 else {
                     var id = rows[0].id;
-                    var queryString2 = 'update rooms set host=' + id + ' where token=' + roomToken;
+                    var queryString2 = 'update rooms set host=' + id + ' where token="' + roomToken + '"';
                     _this._connection.query(queryString2, function (err, ok) {
                         if (err) {
                             console.log('[SQL_SELECT_ERROR] ', err.message);

@@ -3,6 +3,7 @@ import {Server} from "socket.io"
 import {Room} from "./lib/room"
 import {DB} from "./mysql/mysql"
 import {request} from "express";
+import {_notify} from "./lib/global";
 
 const express = require("express");
 const mediasoup = require('mediasoup');
@@ -280,21 +281,27 @@ io.of('/room').on("connection", async (socket)=> {
     mysqlDB.isHost(peerId, roomId, async (error, res) => {
         if (error) {
             logger.warn(`room ${roomId} or peer ${peerId} is illegal!`);
-            socket.disconnect(true);
+            _notify(socket, 'allowed', {allowed : false});
+            setTimeout(() => {
+                socket.disconnect(true);
+            }, 5000);
             return;
         } else {
             const room = await getOrCreateRoom({roomId, host: res});
             if (room == null) {
-                socket.disconnect(true);
+                _notify(socket, 'allowed', {allowed : false});
+                setTimeout(() => {
+                    socket.disconnect(true);
+                }, 5000);
                 return;
             }
+            _notify(socket, 'allowed', {allowed : true});
             room.handleConnection(peerId, socket);
         }
     })
 })
 
 httpServer.listen(4446, function () { logger.info('Listening on port 4446') });
-
 async function getOrCreateRoom({ roomId, host })
 {
     let room = rooms.get(roomId);

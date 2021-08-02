@@ -351,9 +351,9 @@ export class DB {
         )
     }
 
-    saveFile(token, roomId, path, callback){
+        saveFile(token, path, callback){
         this._connection.query(
-            'select users.portrait from users where token="'+token+'"',
+            'select users.id from users where token="'+token+'"',
             (err, rows)=>{
                 if(err){
                     console.log('[SQL_SELECT_ERROR] ', err.message);
@@ -362,13 +362,13 @@ export class DB {
                     if (rows.length === 0){
                         callback("Wrong Token", null);
                     }else{
-                        const queryString = 'insert into files set path="'+path+'", owner='+rows[0].id+', room='+roomId;
+                        const queryString = 'insert into files set path="'+path+'", owner='+rows[0].id;
                         this._connection.query(
                             queryString,
                             (err, ok)=>{
                                 if(err){
-                                    console.log('[SQL_SELECT_ERROR] ', err.message);
-                                    callback('SSE', null);
+                                    console.log('[SQL_INSERT_ERROR] ', err.message);
+                                    callback('SIE', null);
                                 }else {
                                     callback(null, ok);
                                 }
@@ -378,6 +378,5 @@ export class DB {
                 }
             }
         )
-
     }
 }

@@ -239,19 +239,20 @@ app.post(
 )
 
 app.post(
-    'file',
+    '/file',
     (req, res)=> {
         const token = req.query.token
-        const roomId = req.query.roomId
-        let filename = require("string-random")(32) + '.' + req.files[0].mimetype.split('/')[1];
+        console.log(req.files[0]);
+        const filetype = req.files[0].originalname.split('.').pop();
+        let filename = require("string-random")(32) + '.' + filetype;
         let des_file = "./uploads/files/" + filename; //文件名
-        console.log(roomId, des_file);  // 上传的文件信息
+        console.log(des_file);  // 上传的文件信息
         fs.readFile(req.files[0].path, function (err, data) {  // 异步读取文件内容
             fs.writeFile(des_file, data, function (err) { // des_file是文件名，data，文件数据，异步写入到文件
                 if (err) {
                     console.log(err);
                 } else {
-                    mysqlDB.saveFile(token, roomId, '/static/files/' + filename, (err, ok) => {
+                    mysqlDB.saveFile(token, '/static/files/' + filename, (err, ok) => {
                         if (err) {
                             res.status(401).json({
                                 "error": err
@@ -259,7 +260,7 @@ app.post(
                         } else {
                             res.status(200).json({
                                 "status": "OK",
-                                "filename": filename
+                                "path": '/static/files/'+filename
                             })
                         }
                     });

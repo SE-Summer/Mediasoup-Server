@@ -64,12 +64,13 @@ export enum RequestMethod {
     resumeProducer = 'resumeProducer',
     pauseConsumer = 'pauseConsumer',
     resumeConsumer = 'resumeConsumer',
-    sendMessage = 'sendMessage',
+    sendText = 'sendText',
     close = 'close',
     kick = 'kick',
     mute = 'mute',
     transferHost = 'transferHost',
-    restartIce = 'restartIce'
+    restartIce = 'restartIce',
+    sendFile = 'sendFile'
 }
 
 export let logger = require('log4js').getLogger();

@@ -40,6 +40,7 @@ var http_1 = require("http");
 var socket_io_1 = require("socket.io");
 var room_1 = require("./lib/room");
 var mysql_1 = require("./mysql/mysql");
+var global_1 = require("./lib/global");
 var express = require("express");
 var mediasoup = require('mediasoup');
 var fs = require('fs');
@@ -279,15 +280,22 @@ io.of('/room').on("connection", function (socket) { return __awaiter(void 0, voi
                     case 0:
                         if (!error) return [3 /*break*/, 1];
                         logger.warn("room " + roomId + " or peer " + peerId + " is illegal!");
-                        socket.disconnect(true);
+                        global_1._notify(socket, 'allowed', { allowed: false });
+                        setTimeout(function () {
+                            socket.disconnect(true);
+                        }, 5000);
                         return [2 /*return*/];
                     case 1: return [4 /*yield*/, getOrCreateRoom({ roomId: roomId, host: res })];
                     case 2:
                         room = _a.sent();
                         if (room == null) {
-                            socket.disconnect(true);
+                            global_1._notify(socket, 'allowed', { allowed: false });
+                            setTimeout(function () {
+                                socket.disconnect(true);
+                            }, 5000);
                             return [2 /*return*/];
                         }
+                        global_1._notify(socket, 'allowed', { allowed: true });
                         room.handleConnection(peerId, socket);
                         _a.label = 3;
                     case 3: return [2 /*return*/];

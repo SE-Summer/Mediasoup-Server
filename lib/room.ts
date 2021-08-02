@@ -489,17 +489,9 @@ export class Room extends EventEmitter{
                 callback();
                 break;
             }
-            case RequestMethod.sendMessage :
+            case RequestMethod.sendText :
             {
                 const {toPeerId, timestamp, text} = request.data;
-
-                const recvPeer = this._peers.get(toPeerId);
-
-                if (!recvPeer) {
-                    let error = `receive peer ${toPeerId} does NOT exist!`;
-                    callback(error);
-                    throw Error (error);
-                }
 
                 let message = {
                     fromPeerId : peer.id,
@@ -508,48 +500,52 @@ export class Room extends EventEmitter{
                     text : text
                 }
 
-                if (toPeerId === undefined) {
-                    logger.info(`SendMessage : peer ${peer.id} broadcast message`);
-                    _notify(peer.socket, 'newMessage', message, true, this._roomId);
+                if (toPeerId == null) {
+                    logger.info(`SendText : peer ${peer.id} broadcast text`);
+                    _notify(peer.socket, 'newText', message, true, this._roomId);
+                    callback(null);
+                    logger.debug(`${text}`);
                 } else {
-                    logger.info(`SendMessage : peer ${peer.id} send message to ${toPeerId}`);
+                    const recvPeer = this._peers.get(toPeerId);
+
+                    if (!recvPeer) {
+                        let error = `receive peer ${toPeerId} does NOT exist!`;
+                        callback(error);
+                        throw Error (error);
+                    }
+
+                    logger.info(`SendText : peer ${peer.id} send text to ${toPeerId}`);
                     message.broadcast = false;
-                    _notify(recvPeer.socket, 'newMessage', message);
+                    _notify(recvPeer.socket, 'newText', message);
+                    logger.debug(`${text}`);
+                    callback(null);
                 }
                 break;
             }
+            case RequestMethod.sendFile :
+            {
+                const {fileURL, timestamp} = request.data;
+
+                logger.info(`Send File : peer ${peer.id}`);
+
+                let message = {
+                    fromPeerId : peer.id,
+                    fileURL : fileURL,
+                    timestamp : timestamp
+                }
+
+                _notify(peer.socket, 'newFile', message, true, this._roomId);
+                callback(null);
+            }
             case RequestMethod.close :
             {
-                if (this._host === peer && this._peers.size !== 1) {
-                    let newHost;
-                    for (const _peer of this._peers) {
-                        if (_peer !== peer) {
-                            newHost = _peer;
-                            break;
-                        }
-                    }
-                    logger.info(`Host ${peer.id} Exit, host transfer to ${newHost.id}`);
-                    mysqlDB.setHost(newHost.id, this._roomId, (error, res) => {
-                        if (res) {
-                            this._host = newHost;
-                            _notify(peer.socket, 'hostChanged', {newHostId : newHost.id}, true, this._roomId);
-                            callback();
-                            peer.setPeerInfo({
-                                displayName : undefined,
-                                avatar : undefined,
-                                joined : false,
-                                closed : true,
-                                device : undefined,
-                                rtpCapabilities : undefined,
-                                sctpCapabilities : undefined
-                            });
-                            peer.close();
-                        } else {
-                            callback(error);
-                            throw Error (error);
-                        }
-                    });
-                    return;
+                console.log(this._peers.size);
+                if (this._host === peer) {
+                    logger.info(`Host ${peer.id} Exit, room closed!`);
+                    _notify(peer.socket, 'roomClosed', null, true, this._roomId);
+                    callback();
+                    this.close();
+                    break;
                 }
 
                 logger.info(`Member Exit : ${peer.id}!`);
@@ -680,6 +676,7 @@ export class Room extends EventEmitter{
                 });
                 break;
             }
+
             default :
             {
                 let error = `Unknown Request ${request.method}`;

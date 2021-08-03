@@ -238,19 +238,20 @@ app.post('/portrait', function (req, res) {
         });
     });
 });
-app.post('file', function (req, res) {
+app.post('/file', function (req, res) {
     var token = req.query.token;
-    var roomId = req.query.roomId;
-    var filename = require("string-random")(32) + '.' + req.files[0].mimetype.split('/')[1];
+    console.log(req.files[0]);
+    var filetype = req.files[0].originalname.split('.').pop();
+    var filename = require("string-random")(32) + '.' + filetype;
     var des_file = "./uploads/files/" + filename; //文件名
-    console.log(roomId, des_file); // 上传的文件信息
+    console.log(des_file); // 上传的文件信息
     fs.readFile(req.files[0].path, function (err, data) {
         fs.writeFile(des_file, data, function (err) {
             if (err) {
                 console.log(err);
             }
             else {
-                mysqlDB.saveFile(token, roomId, '/static/files/' + filename, function (err, ok) {
+                mysqlDB.saveFile(token, '/static/files/' + filename, function (err, ok) {
                     if (err) {
                         res.status(401).json({
                             "error": err
@@ -259,7 +260,7 @@ app.post('file', function (req, res) {
                     else {
                         res.status(200).json({
                             "status": "OK",
-                            "filename": filename
+                            "path": '/static/files/' + filename
                         });
                     }
                 });

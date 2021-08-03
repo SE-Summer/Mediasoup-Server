@@ -317,9 +317,9 @@ var DB = /** @class */ (function () {
             }
         });
     };
-    DB.prototype.saveFile = function (token, roomId, path, callback) {
+    DB.prototype.saveFile = function (token, path, callback) {
         var _this = this;
-        this._connection.query('select users.portrait from users where token="' + token + '"', function (err, rows) {
+        this._connection.query('select users.id from users where token="' + token + '"', function (err, rows) {
             if (err) {
                 console.log('[SQL_SELECT_ERROR] ', err.message);
                 callback('SSE', null);
@@ -329,11 +329,11 @@ var DB = /** @class */ (function () {
                     callback("Wrong Token", null);
                 }
                 else {
-                    var queryString = 'insert into files set path="' + path + '", owner=' + rows[0].id + ', room=' + roomId;
+                    var queryString = 'insert into files set path="' + path + '", owner=' + rows[0].id;
                     _this._connection.query(queryString, function (err, ok) {
                         if (err) {
-                            console.log('[SQL_SELECT_ERROR] ', err.message);
-                            callback('SSE', null);
+                            console.log('[SQL_INSERT_ERROR] ', err.message);
+                            callback('SIE', null);
                         }
                         else {
                             callback(null, ok);

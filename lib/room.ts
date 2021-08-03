@@ -524,14 +524,16 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.sendFile :
             {
-                const {fileURL, timestamp} = request.data;
+                const {fileURL, timestamp, filename, fileType} = request.data;
 
                 logger.info(`Send File : peer ${peer.id}`);
 
                 let message = {
                     fromPeerId : peer.id,
                     fileURL : fileURL,
-                    timestamp : timestamp
+                    timestamp : timestamp,
+                    filename : filename,
+                    fileType : fileType
                 }
 
                 _notify(peer.socket, 'newFile', message, true, this._roomId);

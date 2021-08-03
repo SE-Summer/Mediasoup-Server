@@ -536,6 +536,7 @@ export class Room extends EventEmitter{
 
                 _notify(peer.socket, 'newFile', message, true, this._roomId);
                 callback(null);
+                break;
             }
             case RequestMethod.close :
             {

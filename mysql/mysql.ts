@@ -350,8 +350,7 @@ export class DB {
             }
         )
     }
-
-        saveFile(token, path, callback){
+    saveFile(token, path, callback){
         this._connection.query(
             'select users.id from users where token="'+token+'"',
             (err, rows)=>{
@@ -371,6 +370,52 @@ export class DB {
                                     callback('SIE', null);
                                 }else {
                                     callback(null, ok);
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        )
+    }
+
+    reserve(token, roomId, password, callback){
+        let userId;
+        this._connection.query(
+            'select users.id from users where token="'+token+'"',
+            (err, rows)=>{
+                if(err){
+                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    callback('SSE', null)
+                }else{
+                    if (rows.length === 0){
+                        callback("Wrong Token", null);
+                    }else{
+                        userId = rows[0].id
+                        const queryString = 'select room.id from rooms where id='+roomId+', password="'+password+'"';
+                        this._connection.query(
+                            queryString,
+                            (err, rows)=>{
+                                if(err){
+                                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                                    callback('SEE', null);
+                                }else {
+                                    if (rows.length === 0){
+                                        callback("No Such Room", null);
+                                    }else{
+                                        const queryString2 = 'insert into rooms set userId='+ userId +', roomId='+roomId;
+                                        this._connection.query(
+                                            queryString,
+                                            (err, ok)=>{
+                                                if(err){
+                                                    console.log('[SQL_INSERT_ERROR] ', err.message);
+                                                    callback('SIE', null);
+                                                }else {
+                                                    callback(null, ok);
+                                                }
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         )

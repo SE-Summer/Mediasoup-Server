@@ -11,7 +11,7 @@ var DB = /** @class */ (function () {
         this._connection = mysql.createConnection({
             host: 'localhost',
             user: 'root',
-            password: '20010127CL',
+            password: '655566',
             database: 'test'
         });
         this._connection.connect();
@@ -28,7 +28,7 @@ var DB = /** @class */ (function () {
         });
     };
     DB.prototype.getRooms = function (token, callback) {
-        this._connection.query('select r.id, r.token, r.password, r.host, r.end_time, r.start_time, r.topic, r.max_num from rooms r, users u where u.id = r.host and u.token="' + token + '" order by r.start_time desc', function (err, rows) {
+        this._connection.query('select r.id, r.token, r.password, r.host, r.end_time, r.start_time, r.topic, r.max_num from rooms r, users u, reservations e where u.id=e.userId and r.id=e.roomId and u.token="' + token + '" order by r.start_time desc', function (err, rows) {
             if (err) {
                 console.log('[SQL_SELECT_ERROR] ', err.message);
                 callback('SSE', null);
@@ -234,14 +234,22 @@ var DB = /** @class */ (function () {
                             callback('SIE', null);
                         }
                         else {
-                            var queryString2_1 = 'select * from rooms where id=' + ok.insertId;
-                            _this._connection.query(queryString2_1, function (err, rows) {
+                            _this._connection.query('insert into reservations set userId=' + host + ', roomId=' + ok.insertId, function (err, ok2) {
                                 if (err) {
                                     console.log('[SQL_SELECT_ERROR] ', err.message);
                                     callback('SSE', null);
                                 }
                                 else {
-                                    callback(null, rows);
+                                    var queryString2_1 = 'select * from rooms where id=' + ok.insertId;
+                                    _this._connection.query(queryString2_1, function (err, rows) {
+                                        if (err) {
+                                            console.log('[SQL_SELECT_ERROR] ', err.message);
+                                            callback('SSE', null);
+                                        }
+                                        else {
+                                            callback(null, rows);
+                                        }
+                                    });
                                 }
                             });
                         }
@@ -337,6 +345,48 @@ var DB = /** @class */ (function () {
                         }
                         else {
                             callback(null, ok);
+                        }
+                    });
+                }
+            }
+        });
+    };
+    DB.prototype.reserve = function (token, roomId, password, callback) {
+        var _this = this;
+        var userId;
+        this._connection.query('select users.id from users where token="' + token + '"', function (err, rows) {
+            if (err) {
+                console.log('[SQL_SELECT_ERROR] ', err.message);
+                callback('SSE', null);
+            }
+            else {
+                if (rows.length === 0) {
+                    callback("Wrong Token", null);
+                }
+                else {
+                    userId = rows[0].id;
+                    var queryString = 'select rooms.id from rooms where id=' + roomId + ' and password="' + password + '"';
+                    _this._connection.query(queryString, function (err, rows) {
+                        if (err) {
+                            console.log('[SQL_SELECT_ERROR] ', err.message);
+                            callback('SEE', null);
+                        }
+                        else {
+                            if (rows.length === 0) {
+                                callback("No Such Room", null);
+                            }
+                            else {
+                                var queryString2 = 'insert into reservations set userId=' + userId + ', roomId=' + roomId;
+                                _this._connection.query(queryString2, function (err, ok) {
+                                    if (err) {
+                                        console.log('[SQL_INSERT_ERROR] ', err.message);
+                                        callback('SIE', null);
+                                    }
+                                    else {
+                                        callback(null, ok);
+                                    }
+                                });
+                            }
                         }
                     });
                 }

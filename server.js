@@ -53,6 +53,16 @@ var httpServer = http_1.createServer(app);
 var workers = [];
 var workerIter = 0;
 var rooms = new Map();
+app.use(function (req, res, next) {
+    //设置请求头
+    res.set({
+        'Access-Control-Allow-Credentials': true,
+        'Access-Control-Allow-Origin': req.headers.origin || '*',
+        'Access-Control-Allow-Headers': 'X-Requested-With,Content-Type',
+        'Access-Control-Allow-Methods': 'PUT,POST,GET,DELETE,OPTIONS'
+    });
+    next();
+});
 app.use(express.json());
 app.use('/static', express.static('uploads'));
 app.use(multer({ dest: '/tmp/' }).array('file'));
@@ -190,6 +200,22 @@ app.post('/reserve', function (req, res) {
         else {
             res.status(200).json({
                 "room": rows[0]
+            });
+        }
+    });
+});
+app.post('/reserveOther', function (req, res) {
+    console.log(req.body);
+    var _a = req.body, token = _a.token, roomId = _a.roomId, password = _a.password;
+    mysqlDB.reserve(token, roomId, password, function (err, rows) {
+        if (err) {
+            res.status(401).json({
+                "error": err
+            });
+        }
+        else {
+            res.status(200).json({
+                "status": "OK"
             });
         }
     });

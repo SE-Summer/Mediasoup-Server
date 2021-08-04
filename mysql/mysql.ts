@@ -12,7 +12,7 @@ export class DB {
         this._connection = mysql.createConnection({
             host: 'localhost',
             user: 'root',
-            password: '20010127CL',
+            password: '655566',
             database: 'test'
         });
 
@@ -35,7 +35,7 @@ export class DB {
 
     getRooms(token, callback){
         this._connection.query(
-            'select r.id, r.token, r.password, r.host, r.end_time, r.start_time, r.topic, r.max_num from rooms r, users u where u.id = r.host and u.token="' + token +'" order by r.start_time desc',
+            'select r.id, r.token, r.password, r.host, r.end_time, r.start_time, r.topic, r.max_num from rooms r, users u, reservations e where u.id=e.userId and r.id=e.roomId and u.token="' + token +'" order by r.start_time desc',
             (err, rows)=>{
                 if(err){
                     console.log('[SQL_SELECT_ERROR] ', err.message);
@@ -260,18 +260,29 @@ export class DB {
                                     console.log('[SQL_INSERT_ERROR] ', err.message);
                                     callback('SIE', null)
                                 }else{
-                                    const queryString2 = 'select * from rooms where id='+ok.insertId;
                                     this._connection.query(
-                                        queryString2,
-                                        (err, rows)=>{
+                                        'insert into reservations set userId='+host+', roomId='+ok.insertId,
+                                        (err, ok2)=>{
                                             if(err){
                                                 console.log('[SQL_SELECT_ERROR] ', err.message);
                                                 callback('SSE', null)
                                             }else{
-                                                callback(null, rows);
+                                                const queryString2 = 'select * from rooms where id='+ok.insertId;
+                                                this._connection.query(
+                                                    queryString2,
+                                                    (err, rows)=>{
+                                                        if(err){
+                                                            console.log('[SQL_SELECT_ERROR] ', err.message);
+                                                            callback('SSE', null)
+                                                        }else{
+                                                            callback(null, rows);
+                                                        }
+                                                    }
+                                                )
                                             }
                                         }
                                     )
+
                                 }
                             }
                         )
@@ -392,7 +403,7 @@ export class DB {
                         callback("Wrong Token", null);
                     }else{
                         userId = rows[0].id
-                        const queryString = 'select room.id from rooms where id='+roomId+', password="'+password+'"';
+                        const queryString = 'select rooms.id from rooms where id='+roomId+' and password="'+password+'"';
                         this._connection.query(
                             queryString,
                             (err, rows)=>{
@@ -403,9 +414,9 @@ export class DB {
                                     if (rows.length === 0){
                                         callback("No Such Room", null);
                                     }else{
-                                        const queryString2 = 'insert into rooms set userId='+ userId +', roomId='+roomId;
+                                        const queryString2 = 'insert into reservations set userId='+ userId +', roomId='+roomId;
                                         this._connection.query(
-                                            queryString,
+                                            queryString2,
                                             (err, ok)=>{
                                                 if(err){
                                                     console.log('[SQL_INSERT_ERROR] ', err.message);

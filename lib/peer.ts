@@ -23,6 +23,10 @@ export interface Peer{
 
     getAllProducer ();
 
+    getAllDataProducer ();
+
+    getAllAudioProducer ();
+
     /**
      * @return peerInfo:
      * {
@@ -65,15 +69,21 @@ export interface Peer{
 
     /**
      * @param displayName
+     * @param avatar
      * @param joined
+     * @param closed
      * @param device
-     * @param rtpCapablities
+     * @param rtpCapabilities
+     * @param sctpCapabilities
      */
     setPeerInfo ({
                      displayName,
+                     avatar,
                      joined,
+                     closed,
                      device,
-                     rtpCapabilities
+                     rtpCapabilities,
+                     sctpCapabilities
     });
 
     //endregion

@@ -1,7 +1,10 @@
+const os = require('os');
+
 module.exports =
 {
     mediasoup :
         {
+            workerNum : Object.keys(os.cpus()).length,
             workerSettings :
                 {
                         logLevel : 'warn',
@@ -83,7 +86,7 @@ module.exports =
                     listenIps :
                         [
                             {
-                                ip          : process.env.MEDIASOUP_LISTEN_IP || '192.168.0.106',
+                                ip          : process.env.MEDIASOUP_LISTEN_IP || '59.78.8.125',
                                 announcedIp : process.env.MEDIASOUP_ANNOUNCED_IP
                             }
                         ],

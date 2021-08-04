@@ -1,3 +1,5 @@
+import {Socket} from "socket.io";
+
 export enum RequestMethod {
 
     /**
@@ -56,18 +58,72 @@ export enum RequestMethod {
      */
     produce = 'produce',
 
-    /**
-     * @ev request
-     * @body {
-     *     subscribeId : id of subscribed peer
-     * }
-     * @response subscribedInfo : information of subscribed peer
-     */
-    consume = 'consume',
+    produceData = 'produceData',
     closeProducer = 'closeProducer',
     pauseProducer = 'pauseProducer',
     resumeProducer = 'resumeProducer',
     pauseConsumer = 'pauseConsumer',
     resumeConsumer = 'resumeConsumer',
-    close = 'close'
+    sendText = 'sendText',
+    close = 'close',
+    kick = 'kick',
+    mute = 'mute',
+    transferHost = 'transferHost',
+    restartIce = 'restartIce',
+    sendFile = 'sendFile'
+}
+
+export let logger = require('log4js').getLogger();
+logger.level = "debug";
+
+export function _timeoutCallback(callback) {
+    let called = false;
+
+    const interval = setTimeout(() => {
+            if (called) {
+                return;
+            }
+
+            called = true;
+            callback(new Error('Request timeout.'));
+        },
+        10000
+    );
+
+    return (...args) => {
+        if (called) {
+            return;
+        }
+
+        called = true;
+        clearTimeout(interval);
+
+        callback(...args);
+    };
+}
+
+export function _request(socket : Socket, method : string, data = {}) {
+    return new Promise((resolve, reject) => {
+        socket.emit(
+            'request',
+            {method, data},
+            this._timeoutCallback((err, response) => {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    resolve(response);
+                }
+            })
+        )
+    })
+}
+
+export function _notify(socket : Socket, method : string, data = {}, broadcast = false, roomId = undefined) {
+    if (broadcast) {
+        socket.broadcast.to(roomId).emit(
+            'notify', {method, data}
+        );
+    } else
+        socket.emit('notify', {method, data});
 }

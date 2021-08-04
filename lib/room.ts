@@ -155,7 +155,8 @@ export class Room extends EventEmitter{
         if (this._peers.has(peerId)) {
             peer = this._peers.get(peerId);
             logger.info(`peer ${peerId} reconnect`);
-            peer.socket = socket;
+            peer.socket.removeAllListeners(['disconnect']);
+	    peer.socket = socket;
         } else {
             peer = new PeerImpl(peerId, socket);
             this._peers.set(peerId, peer);
@@ -172,6 +173,37 @@ export class Room extends EventEmitter{
 
         socket.on('disconnect', () => {
             logger.info(`Peer ${peer.id} disconnected!`);
+            if (this._host === peer) {
+                logger.info(`Host ${peer.id} Exit`);
+                let peerArray : PeerImpl [] = Array.from(this._peers.values());
+                if (peerArray.length !== 1) {
+                    peerArray.splice(peerArray.indexOf(peer),1);
+                    let random = Math.floor(Math.random() * peerArray.length);
+                    let newHost : PeerImpl = peerArray[random]
+                    mysqlDB.setHost(newHost.id, this._roomId, (error, res) => {
+                        if (res) {
+                            logger.info(`TransferHostBeforeClose : transfer host from ${peer.id} to ${newHost.id}`);
+                            this._host = newHost;
+                            _notify(newHost.socket, 'hostChanged', {newHostId : newHost.id}, true, this._roomId);
+                        } else {
+                            throw Error (error);
+                        }
+                     });
+                }
+            } else {
+                logger.info(`Member Exit : ${peer.id}!`);
+            }
+
+            peer.setPeerInfo({
+                displayName : undefined,
+                avatar : undefined,
+                joined : false,
+                closed : true,
+                device : undefined,
+                rtpCapabilities : undefined,
+                sctpCapabilities : undefined
+            });
+            peer.close();
         })
 
         peer.on('close', () => {
@@ -183,8 +215,6 @@ export class Room extends EventEmitter{
             peer.socket.leave(this._roomId);
 
             logger.info(`Peer ${peerId} closed`);
-
-            peer.socket.disconnect(true);
 
             if (this._peers.size === 0) {
                 this.close();
@@ -543,27 +573,27 @@ export class Room extends EventEmitter{
             case RequestMethod.close :
             {
                 console.log(this._peers.size);
-                if (this._host === peer) {
-                    logger.info(`Host ${peer.id} Exit, room closed!`);
-                    _notify(peer.socket, 'roomClosed', null, true, this._roomId);
-                    callback();
-                    this.close();
-                    break;
-                }
-
-                logger.info(`Member Exit : ${peer.id}!`);
-                callback();
-                peer.setPeerInfo({
-                    displayName : undefined,
-                    avatar : undefined,
-                    joined : false,
-                    closed : true,
-                    device : undefined,
-                    rtpCapabilities : undefined,
-                    sctpCapabilities : undefined
-                });
-                peer.close();
-                break;
+                // if (this._host === peer) {
+                //     logger.info(`Host ${peer.id} Exit, room closed!`);
+                //     _notify(peer.socket, 'roomClosed', null, true, this._roomId);
+                //     callback();
+                //     this.close();
+                //     break;
+                // }
+                //
+                // logger.info(`Member Exit : ${peer.id}!`);
+                // callback();
+                // peer.setPeerInfo({
+                //     displayName : undefined,
+                //     avatar : undefined,
+                //     joined : false,
+                //     closed : true,
+                //     device : undefined,
+                //     rtpCapabilities : undefined,
+                //     sctpCapabilities : undefined
+                // });
+                // peer.close();
+                // break;
             }
             case RequestMethod.kick :
             {
@@ -579,6 +609,7 @@ export class Room extends EventEmitter{
 
                 let kickedPeer = this._peers.get(kickedPeerId);
 
+                _notify(kickedPeer.socket, 'kicked', null);
                 kickedPeer.close();
                 callback();
                 break;
@@ -704,3 +735,4 @@ export class Room extends EventEmitter{
         this.emit('close');
     }
 }
+

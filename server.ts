@@ -302,7 +302,7 @@ app.post(
 createWorkers();
 
 const io = new Server(httpServer, {
-
+    pingTimeout : 5000,
 })
 
 io.of('/room').on("connection", async (socket)=> {

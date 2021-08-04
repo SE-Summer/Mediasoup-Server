@@ -373,8 +373,8 @@ function createWorkers() {
                     logger.info("Running " + workerNum + " Workers...");
                     _loop_1 = function (i) {
                         var worker;
-                        return __generator(this, function (_a) {
-                            switch (_a.label) {
+                        return __generator(this, function (_b) {
+                            switch (_b.label) {
                                 case 0: return [4 /*yield*/, mediasoup.createWorker({
                                         logLevel: config.mediasoup.workerSettings.logLevel,
                                         logTags: config.mediasoup.workerSettings.logTags,
@@ -382,7 +382,7 @@ function createWorkers() {
                                         rtcMaxPort: Number(config.mediasoup.workerSettings.rtcMaxPort)
                                     })];
                                 case 1:
-                                    worker = _a.sent();
+                                    worker = _b.sent();
                                     worker.on('died', function () {
                                         logger.error("Worker " + worker.pid + " DIED, exiting in 5 secs");
                                         setTimeout(function () { return process.exit(1); }, 5000);

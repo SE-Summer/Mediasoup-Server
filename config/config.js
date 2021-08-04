@@ -86,7 +86,7 @@ module.exports =
                     listenIps :
                         [
                             {
-                                ip          : process.env.MEDIASOUP_LISTEN_IP || '59.78.8.125',
+                                ip          : process.env.MEDIASOUP_LISTEN_IP || '192.168.3.43',
                                 announcedIp : process.env.MEDIASOUP_ANNOUNCED_IP
                             }
                         ],

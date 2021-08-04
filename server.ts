@@ -307,7 +307,6 @@ const io = new Server(httpServer, {
 
 io.of('/room').on("connection", async (socket)=> {
     const {roomId, peerId} = socket.handshake.query;
-
     mysqlDB.isHost(peerId, roomId, async (error, res) => {
         if (error) {
             logger.warn(`room ${roomId} or peer ${peerId} is illegal!`);

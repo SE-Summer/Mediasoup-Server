@@ -65,7 +65,7 @@ export enum RequestMethod {
     pauseConsumer = 'pauseConsumer',
     resumeConsumer = 'resumeConsumer',
     sendText = 'sendText',
-    close = 'close',
+    closeRoom = 'closeRoom',
     kick = 'kick',
     mute = 'mute',
     transferHost = 'transferHost',

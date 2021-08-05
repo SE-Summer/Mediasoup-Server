@@ -324,7 +324,6 @@ export class Room extends EventEmitter{
 
                 if (transportType !== 'consumer' && transportType !== 'producer') {
                     callback('transport type ERROR!', {sendType : transportType});
-                    callback('transport type ERROR!', {sendType : transportType});
                     break;
                 }
 
@@ -570,30 +569,19 @@ export class Room extends EventEmitter{
                 callback(null);
                 break;
             }
-            case RequestMethod.close :
+            case RequestMethod.closeRoom :
             {
-                console.log(this._peers.size);
-                // if (this._host === peer) {
-                //     logger.info(`Host ${peer.id} Exit, room closed!`);
-                //     _notify(peer.socket, 'roomClosed', null, true, this._roomId);
-                //     callback();
-                //     this.close();
-                //     break;
-                // }
-                //
-                // logger.info(`Member Exit : ${peer.id}!`);
-                // callback();
-                // peer.setPeerInfo({
-                //     displayName : undefined,
-                //     avatar : undefined,
-                //     joined : false,
-                //     closed : true,
-                //     device : undefined,
-                //     rtpCapabilities : undefined,
-                //     sctpCapabilities : undefined
-                // });
-                // peer.close();
-                // break;
+                if (this._host !== peer) {
+                    let error = `CLOSE ROOM :peer ${peer.id} is not HOST`;
+                    callback(error);
+                    throw Error (error);
+                }
+
+                logger.info(`CLOSE ROOM : Host ${peer.id} Exit, room closed!`);
+                _notify(peer.socket, 'roomClosed', null, true, this._roomId);
+                callback();
+                this.close();
+                break;
             }
             case RequestMethod.kick :
             {
@@ -624,14 +612,15 @@ export class Room extends EventEmitter{
                     throw Error (error);
                 }
 
-                if (mutedPeerId === `all`) {
+                if (mutedPeerId == null) {
                     logger.info(`Mute : mute all members except host`);
 
                     for (const peer of this._peers) {
                         if (peer !== this._host) {
                             for (const audio of peer.getAllAudioProducer()) {
-                                _notify(peer.socket, 'beMuted');
-                                await audio.pause();
+                                _notify(peer.socket, 'beMuted', {producerId : audio.id});
+                                await audio.close();
+                                peer.deleteProducer(audio.id);
                             }
                         }
                     }
@@ -650,8 +639,9 @@ export class Room extends EventEmitter{
                 logger.info(`Mute : peer ${peer.id} is muted.`);
 
                 for (const audio of mutedPeer.getAllAudioProducer()) {
-                    _notify(peer.socket, 'muted');
-                    await audio.pause();
+                    _notify(peer.socket, 'beMuted', {producerId : audio.id});
+                    await audio.close();
+                    peer.deleteProducer(audio.id);
                 }
 
                 callback();

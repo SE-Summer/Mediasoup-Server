@@ -1,5 +1,6 @@
 "use strict";
 exports.__esModule = true;
+exports.sendMail = void 0;
 var nodemailer = require('nodemailer'); //引入模块
 var transporter = nodemailer.createTransport({
     service: '163',

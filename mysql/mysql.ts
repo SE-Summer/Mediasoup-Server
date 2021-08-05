@@ -414,18 +414,32 @@ export class DB {
                                     if (rows.length === 0){
                                         callback("No Such Room", null);
                                     }else{
-                                        const queryString2 = 'insert into reservations set userId='+ userId +', roomId='+roomId;
+                                        const queryString2 = 'select reservations.id from reservations where userId='+ userId +' and roomId='+roomId;
                                         this._connection.query(
                                             queryString2,
-                                            (err, ok)=>{
+                                            (err, rows)=>{
                                                 if(err){
                                                     console.log('[SQL_INSERT_ERROR] ', err.message);
                                                     callback('SIE', null);
-                                                }else {
-                                                    callback(null, ok);
+                                                }else if(rows.length > 0){
+                                                    callback('Already Reserved', null);
+                                                }else{
+                                                    const queryString3 = 'insert into reservations set userId='+ userId +', roomId='+roomId;
+                                                    this._connection.query(
+                                                        queryString3,
+                                                        (err, ok)=>{
+                                                            if(err){
+                                                                console.log('[SQL_INSERT_ERROR] ', err.message);
+                                                                callback('SIE', null);
+                                                            }else {
+                                                                callback(null, ok);
+                                                            }
+                                                        }
+                                                    )
                                                 }
                                             }
                                         )
+
                                     }
                                 }
                             }

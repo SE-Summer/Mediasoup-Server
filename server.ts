@@ -1,4 +1,4 @@
-import {createServer} from "http"
+import {createServer} from "https"
 import {Server} from "socket.io"
 import {Room} from "./lib/room"
 import {DB} from "./mysql/mysql"
@@ -13,7 +13,12 @@ const config = require('./config/config.js');
 const app = express();
 const mysqlDB = new DB();
 const {logger} = require('./lib/global');
-const httpServer = createServer(app);
+
+let options = {
+    key:fs.readFileSync('./keys/server.key'),
+    cert:fs.readFileSync('./keys/server.crt')
+}
+const httpsServer = createServer(app);
 
 let workers = [];
 let workerIter = 0;
@@ -301,7 +306,7 @@ app.post(
 
 createWorkers();
 
-const io = new Server(httpServer, {
+const io = new Server(httpsServer, {
     pingTimeout : 5000,
 })
 
@@ -330,7 +335,7 @@ io.of('/room').on("connection", async (socket)=> {
     })
 })
 
-httpServer.listen(4446, function () { logger.info('Listening on port 4446') });
+httpsServer.listen(4446, function () { logger.info('Listening on port 4446') });
 async function getOrCreateRoom({ roomId, host })
 {
     let room = rooms.get(roomId);

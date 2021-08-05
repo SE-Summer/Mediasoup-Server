@@ -375,14 +375,26 @@ var DB = /** @class */ (function () {
                                 callback("No Such Room", null);
                             }
                             else {
-                                var queryString2 = 'insert into reservations set userId=' + userId + ', roomId=' + roomId;
-                                _this._connection.query(queryString2, function (err, ok) {
+                                var queryString2 = 'select reservations.id from reservations where userId=' + userId + ' and roomId=' + roomId;
+                                _this._connection.query(queryString2, function (err, rows) {
                                     if (err) {
                                         console.log('[SQL_INSERT_ERROR] ', err.message);
                                         callback('SIE', null);
                                     }
+                                    else if (rows.length > 0) {
+                                        callback('Already Reserved', null);
+                                    }
                                     else {
-                                        callback(null, ok);
+                                        var queryString3 = 'insert into reservations set userId=' + userId + ', roomId=' + roomId;
+                                        _this._connection.query(queryString3, function (err, ok) {
+                                            if (err) {
+                                                console.log('[SQL_INSERT_ERROR] ', err.message);
+                                                callback('SIE', null);
+                                            }
+                                            else {
+                                                callback(null, ok);
+                                            }
+                                        });
                                     }
                                 });
                             }

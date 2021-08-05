@@ -176,7 +176,7 @@ export class Room extends EventEmitter{
             if (this._host === peer) {
                 logger.info(`Host ${peer.id} Exit`);
                 let peerArray : PeerImpl [] = Array.from(this._peers.values());
-                if (peerArray.length !== 1) {
+                if (peerArray.length > 1) {
                     peerArray.splice(peerArray.indexOf(peer),1);
                     let random = Math.floor(Math.random() * peerArray.length);
                     let newHost : PeerImpl = peerArray[random]

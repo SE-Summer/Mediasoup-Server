@@ -1,10 +1,12 @@
-import {createServer} from "https"
+
 import {Server} from "socket.io"
 import {Room} from "./lib/room"
 import {DB} from "./mysql/mysql"
 import {request} from "express";
 import {_notify} from "./lib/global";
 
+const http = require('http')
+const https = require('https')
 const express = require("express");
 const mediasoup = require('mediasoup');
 const fs = require('fs');
@@ -18,7 +20,8 @@ let options = {
     key:fs.readFileSync('./keys/server.key'),
     cert:fs.readFileSync('./keys/server.crt')
 }
-const httpsServer = createServer(app);
+const httpsServer = https.createServer(options,app);
+const httpServer = http.createServer(app);
 
 let workers = [];
 let workerIter = 0;
@@ -306,7 +309,11 @@ app.post(
 
 createWorkers();
 
-const io = new Server(httpsServer, {
+const io = new Server(httpServer, {
+    pingTimeout : 5000,
+})
+
+const ios = new Server(httpsServer, {
     pingTimeout : 5000,
 })
 
@@ -334,8 +341,33 @@ io.of('/room').on("connection", async (socket)=> {
         }
     })
 })
+ios.of('/room').on("connection", async (socket)=> {
+    const {roomId, peerId} = socket.handshake.query;
+    mysqlDB.isHost(peerId, roomId, async (error, res) => {
+        if (error) {
+            logger.warn(`room ${roomId} or peer ${peerId} is illegal!`);
+            _notify(socket, 'allowed', {allowed : false});
+            setTimeout(() => {
+                socket.disconnect(true);
+            }, 5000);
+            return;
+        } else {
+            const room = await getOrCreateRoom({roomId, host: res});
+            if (room == null) {
+                _notify(socket, 'allowed', {allowed : false});
+                setTimeout(() => {
+                    socket.disconnect(true);
+                }, 5000);
+                return;
+            }
+            _notify(socket, 'allowed', {allowed : true});
+            room.handleConnection(peerId, socket);
+        }
+    })
+})
 
-httpsServer.listen(4446, function () { logger.info('Listening on port 4446') });
+httpServer.listen(4446, function () { logger.info('http Listening on port 4446') });
+httpsServer.listen(4445, function () { logger.info('https Listening on port 4445') });
 async function getOrCreateRoom({ roomId, host })
 {
     let room = rooms.get(roomId);

@@ -36,11 +36,12 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
     }
 };
 exports.__esModule = true;
-var https_1 = require("https");
 var socket_io_1 = require("socket.io");
 var room_1 = require("./lib/room");
 var mysql_1 = require("./mysql/mysql");
 var global_1 = require("./lib/global");
+var http = require('http');
+var https = require('https');
 var express = require("express");
 var mediasoup = require('mediasoup');
 var fs = require('fs');
@@ -53,7 +54,8 @@ var options = {
     key: fs.readFileSync('./keys/server.key'),
     cert: fs.readFileSync('./keys/server.crt')
 };
-var httpsServer = https_1.createServer(app);
+var httpsServer = https.createServer(options, app);
+var httpServer = http.createServer(app);
 var workers = [];
 var workerIter = 0;
 var rooms = new Map();
@@ -299,7 +301,10 @@ app.post('/file', function (req, res) {
     });
 });
 createWorkers();
-var io = new socket_io_1.Server(httpsServer, {
+var io = new socket_io_1.Server(httpServer, {
+    pingTimeout: 5000
+});
+var ios = new socket_io_1.Server(httpsServer, {
     pingTimeout: 5000
 });
 io.of('/room').on("connection", function (socket) { return __awaiter(void 0, void 0, void 0, function () {
@@ -338,7 +343,44 @@ io.of('/room').on("connection", function (socket) { return __awaiter(void 0, voi
         return [2 /*return*/];
     });
 }); });
-httpsServer.listen(4446, function () { logger.info('Listening on port 4446'); });
+ios.of('/room').on("connection", function (socket) { return __awaiter(void 0, void 0, void 0, function () {
+    var _a, roomId, peerId;
+    return __generator(this, function (_b) {
+        _a = socket.handshake.query, roomId = _a.roomId, peerId = _a.peerId;
+        mysqlDB.isHost(peerId, roomId, function (error, res) { return __awaiter(void 0, void 0, void 0, function () {
+            var room;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        if (!error) return [3 /*break*/, 1];
+                        logger.warn("room " + roomId + " or peer " + peerId + " is illegal!");
+                        global_1._notify(socket, 'allowed', { allowed: false });
+                        setTimeout(function () {
+                            socket.disconnect(true);
+                        }, 5000);
+                        return [2 /*return*/];
+                    case 1: return [4 /*yield*/, getOrCreateRoom({ roomId: roomId, host: res })];
+                    case 2:
+                        room = _a.sent();
+                        if (room == null) {
+                            global_1._notify(socket, 'allowed', { allowed: false });
+                            setTimeout(function () {
+                                socket.disconnect(true);
+                            }, 5000);
+                            return [2 /*return*/];
+                        }
+                        global_1._notify(socket, 'allowed', { allowed: true });
+                        room.handleConnection(peerId, socket);
+                        _a.label = 3;
+                    case 3: return [2 /*return*/];
+                }
+            });
+        }); });
+        return [2 /*return*/];
+    });
+}); });
+httpServer.listen(4446, function () { logger.info('http Listening on port 4446'); });
+httpsServer.listen(4445, function () { logger.info('https Listening on port 4445'); });
 function getOrCreateRoom(_a) {
     var roomId = _a.roomId, host = _a.host;
     return __awaiter(this, void 0, void 0, function () {

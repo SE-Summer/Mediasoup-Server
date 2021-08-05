@@ -155,13 +155,8 @@ export class Room extends EventEmitter{
         if (this._peers.has(peerId)) {
             peer = this._peers.get(peerId);
             logger.info(`peer ${peerId} reconnect`);
-<<<<<<< HEAD
             peer.socket.removeAllListeners(['disconnect']);
 	    peer.socket = socket;
-=======
-            socket.removeAllListeners();
-            peer.socket = socket;
->>>>>>> 89a969af7355c9a076e00d0fd25882b613281a7c
         } else {
             peer = new PeerImpl(peerId, socket);
             this._peers.set(peerId, peer);
@@ -179,7 +174,6 @@ export class Room extends EventEmitter{
         socket.on('disconnect', () => {
             logger.info(`Peer ${peer.id} disconnected!`);
             if (this._host === peer) {
-<<<<<<< HEAD
                 logger.info(`Host ${peer.id} Exit`);
                 let peerArray : PeerImpl [] = Array.from(this._peers.values());
                 if (peerArray.length !== 1) {
@@ -200,14 +194,6 @@ export class Room extends EventEmitter{
                 logger.info(`Member Exit : ${peer.id}!`);
             }
 
-=======
-                logger.info(`Host ${peer.id} Exit, room closed!`);
-                _notify(peer.socket, 'roomClosed', null, true, this._roomId);
-                this.close();
-            }
-
-            logger.info(`Member Exit : ${peer.id}!`);
->>>>>>> 89a969af7355c9a076e00d0fd25882b613281a7c
             peer.setPeerInfo({
                 displayName : undefined,
                 avatar : undefined,
@@ -228,11 +214,8 @@ export class Room extends EventEmitter{
             this._peers.delete(peerId);
             peer.socket.leave(this._roomId);
 
-<<<<<<< HEAD
             logger.info(`Peer ${peerId} closed`);
 
-=======
->>>>>>> 89a969af7355c9a076e00d0fd25882b613281a7c
             if (this._peers.size === 0) {
                 this.close();
             }

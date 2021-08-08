@@ -92,7 +92,7 @@ export class PeerImpl extends EventEmitter implements Peer{
 
     getAllAudioProducer() {
         return Array.from(this.producers.values())
-            .find((p) => p.kind === 'audio');
+            .filter((p) => p.kind === 'audio');
     }
 
     setTransport(transportID: string, transport: MTypes.WebRtcTransport) {

@@ -184,7 +184,7 @@ export class Room extends EventEmitter{
                         if (res) {
                             logger.info(`TransferHostBeforeClose : transfer host from ${peer.id} to ${newHost.id}`);
                             this._host = newHost;
-                            _notify(newHost.socket, 'hostChanged', {newHostId : newHost.id}, true, this._roomId);
+                            _notify(peer.socket, 'hostChanged', {newHostId : newHost.id}, true, this._roomId);
                         } else {
                             throw Error (error);
                         }
@@ -615,15 +615,17 @@ export class Room extends EventEmitter{
                 if (mutedPeerId == null) {
                     logger.info(`Mute : mute all members except host`);
 
-                    for (const peer of this._peers) {
+                    this._peers.forEach(async (peer) =>  {
                         if (peer !== this._host) {
+                            console.log(peer.getAllAudioProducer())
                             for (const audio of peer.getAllAudioProducer()) {
+                                console.log('[MUTE]', audio)
                                 _notify(peer.socket, 'beMuted', {producerId : audio.id});
                                 await audio.close();
                                 peer.deleteProducer(audio.id);
                             }
                         }
-                    }
+                    })
                     callback();
                     break;
                 }
@@ -670,7 +672,7 @@ export class Room extends EventEmitter{
                    if (res) {
                        logger.info(`TransferHost : transfer host from ${peer.id} to ${hostId}`);
                        this._host = newHost;
-                       _notify(newHost.socket, 'hostChanged', {newHostId : hostId}, true, this._roomId);
+                       _notify(peer.socket, 'hostChanged', {newHostId : hostId}, true, this._roomId);
                        callback();
                    } else {
                        callback(error);

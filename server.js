@@ -80,8 +80,8 @@ app.get('/users', function (req, res) {
     });
 });
 app.post('/getReservations', function (req, res) {
-    console.log(req.body);
     var token = req.body.token;
+    logger.info("Post GetReservation : token-" + token);
     mysqlDB.getRooms(token, function (err, rows) {
         res.status(200).json({
             "rooms": rows
@@ -89,8 +89,8 @@ app.post('/getReservations', function (req, res) {
     });
 });
 app.post('/register', function (req, res) {
-    console.log(req.body);
     var _a = req.body, token = _a.token, nickname = _a.nickname, password = _a.password;
+    logger.info("Post Register : token-" + token + " nickname-" + nickname + " password-" + password);
     mysqlDB.register(token, nickname, password, function (err, ok) {
         if (err) {
             res.status(401).json({
@@ -105,8 +105,8 @@ app.post('/register', function (req, res) {
     });
 });
 app.post('/verify', function (req, res) {
-    console.log(req.body);
     var _a = req.body, email = _a.email, verify = _a.verify;
+    logger.info("Post Verify : email-" + email + " verify-" + verify);
     mysqlDB.verify(email, verify, function (err, token) {
         if (err) {
             res.status(401).json({
@@ -122,8 +122,8 @@ app.post('/verify', function (req, res) {
     });
 });
 app.post('/email', function (req, res) {
-    console.log(req.body);
     var email = req.body.email;
+    logger.info("Post email : email-" + email);
     mysqlDB.sendEmail(email, function (err, ok) {
         if (err) {
             res.status(401).json({
@@ -136,8 +136,8 @@ app.post('/email', function (req, res) {
     });
 });
 app.post('/login', function (req, res) {
-    console.log(req.body);
     var _a = req.body, email = _a.email, password = _a.password;
+    logger.info("Post Login : email-" + email + " password-" + password);
     mysqlDB.login(email, password, function (err, rows) {
         if (err) {
             res.status(401).json({
@@ -157,8 +157,8 @@ app.post('/login', function (req, res) {
     });
 });
 app.post('/autoLogin', function (req, res) {
-    console.log(req.body);
     var token = req.body.token;
+    logger.info("Post AutoLogin : token-" + token);
     mysqlDB.autoLogin(token, function (err, rows) {
         if (err) {
             res.status(401).json({
@@ -178,8 +178,8 @@ app.post('/autoLogin', function (req, res) {
     });
 });
 app.post('/getRoom', function (req, res) {
-    console.log(req.body);
     var _a = req.body, id = _a.id, password = _a.password;
+    logger.info("Post GetRoom : id-" + id + " password-" + password);
     mysqlDB.getRoom(id, password, function (err, room) {
         if (err) {
             res.status(401).json({
@@ -195,8 +195,8 @@ app.post('/getRoom', function (req, res) {
     });
 });
 app.post('/reserve', function (req, res) {
-    console.log(req.body);
     var _a = req.body, token = _a.token, password = _a.password, topic = _a.topic, start_time = _a.start_time, end_time = _a.end_time, max_num = _a.max_num;
+    logger.info("Post Reserve : token-" + token + " password-" + password + " topic-" + topic + " start_time" + start_time + " end_time-" + end_time + " max_num-" + max_num);
     mysqlDB.appoint(token, password, start_time, end_time, max_num, topic, function (err, rows) {
         if (err) {
             res.status(401).json({
@@ -211,8 +211,8 @@ app.post('/reserve', function (req, res) {
     });
 });
 app.post('/reserveOther', function (req, res) {
-    console.log(req.body);
     var _a = req.body, token = _a.token, roomId = _a.roomId, password = _a.password;
+    logger.info("Post ReserveOther : token-" + token + " roomId-" + roomId + " password-" + password);
     mysqlDB.reserve(token, roomId, password, function (err, rows) {
         if (err) {
             res.status(401).json({
@@ -227,7 +227,6 @@ app.post('/reserveOther', function (req, res) {
     });
 });
 app.get('/portrait', function (req, res) {
-    console.log(req.query);
     var token = req.query.token;
     mysqlDB.getPortrait(token, function (err, rows) {
         if (err) {
@@ -246,11 +245,10 @@ app.post('/portrait', function (req, res) {
     var token = req.query.token;
     var filename = require("string-random")(32) + '.' + req.files[0].mimetype.split('/')[1];
     var des_file = "./uploads/portraits/" + filename; //文件名
-    console.log(des_file); // 上传的文件信息
     fs.readFile(req.files[0].path, function (err, data) {
         fs.writeFile(des_file, data, function (err) {
             if (err) {
-                console.log(err);
+                logger.error(err);
             }
             else {
                 mysqlDB.savePortrait(token, '/static/portraits/' + filename, function (err, ok) {
@@ -272,15 +270,14 @@ app.post('/portrait', function (req, res) {
 });
 app.post('/file', function (req, res) {
     var token = req.query.token;
-    console.log(req.files[0]);
     var filetype = req.files[0].originalname.split('.').pop();
     var filename = require("string-random")(32) + '.' + filetype;
     var des_file = "./uploads/files/" + filename; //文件名
-    console.log(des_file); // 上传的文件信息
+    logger.info("Post File : token-" + token + " filetype-" + filetype + " filename-" + filename + " des_file-" + des_file);
     fs.readFile(req.files[0].path, function (err, data) {
         fs.writeFile(des_file, data, function (err) {
             if (err) {
-                console.log(err);
+                logger.error(err);
             }
             else {
                 mysqlDB.saveFile(token, '/static/files/' + filename, function (err, ok) {

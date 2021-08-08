@@ -1,6 +1,7 @@
 //import {mysql} from "mysql"
 const mysql = require("mysql")
 const moment = require('moment');
+import { logger } from '../lib/global';
 import {sendMail} from './send-email'
 
 const randomString = require("string-random")
@@ -24,7 +25,7 @@ export class DB {
             'select * from users',
             (err, rows)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null)
                 }else{
                     callback(null, rows)
@@ -38,7 +39,7 @@ export class DB {
             'select r.id, r.token, r.password, r.host, r.end_time, r.start_time, r.topic, r.max_num from rooms r, users u, reservations e where u.id=e.userId and r.id=e.roomId and u.token="' + token +'" order by r.start_time desc',
             (err, rows)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null)
                 }else{
                     callback(null, rows)
@@ -53,7 +54,7 @@ export class DB {
             queryString,
             (err, rows)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null)
                 }else{
                     if (rows.length === 0){
@@ -65,7 +66,7 @@ export class DB {
                             queryString2,
                             (err, rows)=>{
                                 if(err){
-                                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                                     callback('SSE', null)
                                 }else{
                                     if (rows.length === 0){
@@ -90,7 +91,7 @@ export class DB {
             queryString,
             (err, rows)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null)
                 }else{
                     if (rows.length === 0){
@@ -102,7 +103,7 @@ export class DB {
                             queryString2,
                             (err, ok)=>{
                                 if(err){
-                                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                                     callback('SSE', null)
                                 }else{
                                     if (ok.changedRows === 0){
@@ -125,7 +126,7 @@ export class DB {
             queryString,
             (err, ok)=>{
                 if(err){
-                    console.log('[SQL_INSERT_ERROR] ', err.message);
+                    logger.error('[SQL_INSERT_ERROR] ', err.message);
                     callback("SIE", null)
                 }else{
                     if (ok.changedRows > 0){
@@ -143,9 +144,9 @@ export class DB {
         const queryString = 'insert into users set email="'+email+'",verify="'+verify+'"';
         sendMail(email, verify, (succ)=>{
             if (succ){
-                console.log("Email Send: ", verify);
+                logger.info("Email Send: ", verify);
             }else{
-                console.log("Email Send Failed!")
+                logger.error("Email Send Failed!")
             }
         })
         this._connection.query(
@@ -157,7 +158,7 @@ export class DB {
                         queryString,
                         (err, ok)=>{
                             if(err){
-                                console.log('[SQL_UPDATE_ERROR] ', err.message);
+                                logger.error('[SQL_UPDATE_ERROR] ', err.message);
                                 callback("SUE", null)
                             }else{
                                 callback(null, ok)
@@ -178,7 +179,7 @@ export class DB {
             queryString,
             (err, ok)=>{
                 if(err){
-                    console.log('[SQL_UPDATE_ERROR] ', err.message);
+                    logger.error('[SQL_UPDATE_ERROR] ', err.message);
                     callback("SUE", null)
                 }else{
                     if (ok.changedRows > 0){
@@ -197,14 +198,14 @@ export class DB {
         this._connection.query(
             updateString,(err, ok)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('Unauthorized', null)
                 }else{
                     this._connection.query(
                         queryString,
                         (err, rows)=>{
                             if(err){
-                                console.log('[SQL_SELECT_ERROR] ', err.message);
+                                logger.error('[SQL_SELECT_ERROR] ', err.message);
                                 callback('SSE', null)
                             }else{
                                 callback(null, rows)
@@ -222,7 +223,7 @@ export class DB {
             queryString,
             (err, rows)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null)
                 }else{
                     callback(null, rows)
@@ -246,7 +247,7 @@ export class DB {
             queryString,
             (err, rows)=> {
                 if (err) {
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null);
                     return;
                 } else {
@@ -257,14 +258,14 @@ export class DB {
                             queryString2,
                             (err, ok)=>{
                                 if(err){
-                                    console.log('[SQL_INSERT_ERROR] ', err.message);
+                                    logger.error('[SQL_INSERT_ERROR] ', err.message);
                                     callback('SIE', null)
                                 }else{
                                     this._connection.query(
                                         'insert into reservations set userId='+host+', roomId='+ok.insertId,
                                         (err, ok2)=>{
                                             if(err){
-                                                console.log('[SQL_SELECT_ERROR] ', err.message);
+                                                logger.error('[SQL_SELECT_ERROR] ', err.message);
                                                 callback('SSE', null)
                                             }else{
                                                 const queryString2 = 'select * from rooms where id='+ok.insertId;
@@ -272,7 +273,7 @@ export class DB {
                                                     queryString2,
                                                     (err, rows)=>{
                                                         if(err){
-                                                            console.log('[SQL_SELECT_ERROR] ', err.message);
+                                                            logger.error('[SQL_SELECT_ERROR] ', err.message);
                                                             callback('SSE', null)
                                                         }else{
                                                             callback(null, rows);
@@ -301,7 +302,7 @@ export class DB {
             queryString,
             (err, rows)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SEE', null)
                 }else{
                     const room = rows[0];
@@ -311,7 +312,7 @@ export class DB {
                         const now_time = moment().format('YYYY-MM-DD HH:mm');
                         if(room.password === password){
                             if(room.start_time > now_time || room.end_time < now_time){
-                                console.log(room.start_time, room.end_time, now_time)
+                                logger.error(room.start_time, room.end_time, now_time)
                                 callback("Invalid Time", room);
                             }else{
                                 callback(null, room);
@@ -332,7 +333,7 @@ export class DB {
             'select users.portrait from users where token="'+token+'"',
             (err, rows)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null)
                 }else{
                     if (rows.length === 0){
@@ -351,7 +352,7 @@ export class DB {
             queryString,
             (err, ok)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null);
                 }else if (ok.changedRows === 0){
                     callback('Wrong Token', null);
@@ -366,7 +367,7 @@ export class DB {
             'select users.id from users where token="'+token+'"',
             (err, rows)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null)
                 }else{
                     if (rows.length === 0){
@@ -377,7 +378,7 @@ export class DB {
                             queryString,
                             (err, ok)=>{
                                 if(err){
-                                    console.log('[SQL_INSERT_ERROR] ', err.message);
+                                    logger.error('[SQL_INSERT_ERROR] ', err.message);
                                     callback('SIE', null);
                                 }else {
                                     callback(null, ok);
@@ -396,7 +397,7 @@ export class DB {
             'select users.id from users where token="'+token+'"',
             (err, rows)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null)
                 }else{
                     if (rows.length === 0){
@@ -408,7 +409,7 @@ export class DB {
                             queryString,
                             (err, rows)=>{
                                 if(err){
-                                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                                     callback('SEE', null);
                                 }else {
                                     if (rows.length === 0){
@@ -419,7 +420,7 @@ export class DB {
                                             queryString2,
                                             (err, rows)=>{
                                                 if(err){
-                                                    console.log('[SQL_INSERT_ERROR] ', err.message);
+                                                    logger.error('[SQL_INSERT_ERROR] ', err.message);
                                                     callback('SIE', null);
                                                 }else if(rows.length > 0){
                                                     callback('Already Reserved', null);
@@ -429,7 +430,7 @@ export class DB {
                                                         queryString3,
                                                         (err, ok)=>{
                                                             if(err){
-                                                                console.log('[SQL_INSERT_ERROR] ', err.message);
+                                                                logger.error('[SQL_INSERT_ERROR] ', err.message);
                                                                 callback('SIE', null);
                                                             }else {
                                                                 callback(null, ok);

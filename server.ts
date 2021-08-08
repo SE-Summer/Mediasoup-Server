@@ -4,6 +4,7 @@ import {Room} from "./lib/room"
 import {DB} from "./mysql/mysql"
 import {request} from "express";
 import {_notify} from "./lib/global";
+import { max } from "moment";
 
 const http = require('http')
 const https = require('https')
@@ -55,8 +56,8 @@ app.get(
 app.post(
     '/getReservations',
     (req, res)=>{
-        console.log(req.body);
         const {token} = req.body;
+        logger.info(`Post GetReservation : token-${token}`);
         mysqlDB.getRooms(token, (err, rows)=>{
             res.status(200).json({
                 "rooms": rows
@@ -68,8 +69,8 @@ app.post(
 app.post(
     '/register',
     (req, res)=>{
-        console.log(req.body);
         const {token, nickname, password} = req.body
+        logger.info(`Post Register : token-${token} nickname-${nickname} password-${password}`);
         mysqlDB.register(token, nickname, password, (err, ok)=>{
             if (err){
                 res.status(401).json({
@@ -87,8 +88,8 @@ app.post(
 app.post(
     '/verify',
     (req, res)=>{
-        console.log(req.body);
         const {email, verify} = req.body
+        logger.info(`Post Verify : email-${email} verify-${verify}`)
         mysqlDB.verify(email, verify, (err, token)=>{
             if (err){
                 res.status(401).json({
@@ -107,8 +108,8 @@ app.post(
 app.post(
     '/email',
     (req, res)=>{
-        console.log(req.body);
         const {email} = req.body
+        logger.info(`Post email : email-${email}`)
         mysqlDB.sendEmail(email, (err, ok)=>{
             if (err){
                 res.status(401).json({
@@ -125,8 +126,8 @@ app.post(
 app.post(
     '/login',
     (req, res)=>{
-        console.log(req.body);
         const {email, password} = req.body;
+        logger.info(`Post Login : email-${email} password-${password}`)
         mysqlDB.login(email, password,(err, rows)=>{
             if (err){
                 res.status(401).json({
@@ -148,8 +149,8 @@ app.post(
 app.post(
     '/autoLogin',
     (req, res)=>{
-        console.log(req.body);
         const {token} = req.body;
+        logger.info(`Post AutoLogin : token-${token}`)
         mysqlDB.autoLogin(token,(err, rows)=>{
             if (err){
                 res.status(401).json({
@@ -171,8 +172,8 @@ app.post(
 app.post(
     '/getRoom',
     (req, res)=>{
-        console.log(req.body);
         const {id, password} = req.body
+        logger.info(`Post GetRoom : id-${id} password-${password}`)
         mysqlDB.getRoom(id, password,(err, room)=>{
             if (err){
                 res.status(401).json({
@@ -191,8 +192,8 @@ app.post(
 app.post(
     '/reserve',
     (req, res)=>{
-        console.log(req.body);
         const {token, password, topic, start_time, end_time, max_num} = req.body
+        logger.info(`Post Reserve : token-${token} password-${password} topic-${topic} start_time${start_time} end_time-${end_time} max_num-${max_num}`)
         mysqlDB.appoint(token, password, start_time, end_time, max_num, topic, (err, rows)=>{
             if (err){
                 res.status(401).json({
@@ -210,8 +211,8 @@ app.post(
 app.post(
     '/reserveOther',
     (req, res)=>{
-        console.log(req.body);
         const {token, roomId, password} = req.body
+        logger.info(`Post ReserveOther : token-${token} roomId-${roomId} password-${password}`)
         mysqlDB.reserve(token, roomId, password, (err, rows)=>{
             if (err){
                 res.status(401).json({
@@ -229,7 +230,6 @@ app.post(
 app.get(
     '/portrait',
     (req, res)=>{
-        console.log(req.query);
         const token = req.query.token;
         mysqlDB.getPortrait(token, (err, rows)=>{
             if (err){
@@ -251,11 +251,10 @@ app.post(
         const token = req.query.token
         let filename = require("string-random")(32) + '.' +req.files[0].mimetype.split('/')[1];
         let des_file = "./uploads/portraits/" + filename; //文件名
-        console.log(des_file);  // 上传的文件信息
         fs.readFile( req.files[0].path, function (err, data) {  // 异步读取文件内容
             fs.writeFile(des_file, data, function (err) { // des_file是文件名，data，文件数据，异步写入到文件
                 if( err ){
-                    console.log( err );
+                    logger.error( err );
                 }else{
                     mysqlDB.savePortrait(token, '/static/portraits/'+filename, (err, ok)=>{
                         if (err){
@@ -279,15 +278,14 @@ app.post(
     '/file',
     (req, res)=> {
         const token = req.query.token
-        console.log(req.files[0]);
         const filetype = req.files[0].originalname.split('.').pop();
         let filename = require("string-random")(32) + '.' + filetype;
         let des_file = "./uploads/files/" + filename; //文件名
-        console.log(des_file);  // 上传的文件信息
+        logger.info(`Post File : token-${token} filetype-${filetype} filename-${filename} des_file-${des_file}`)
         fs.readFile(req.files[0].path, function (err, data) {  // 异步读取文件内容
             fs.writeFile(des_file, data, function (err) { // des_file是文件名，data，文件数据，异步写入到文件
                 if (err) {
-                    console.log(err);
+                    logger.error(err)
                 } else {
                     mysqlDB.saveFile(token, '/static/files/' + filename, (err, ok) => {
                         if (err) {

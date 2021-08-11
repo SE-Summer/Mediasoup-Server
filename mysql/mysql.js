@@ -1,5 +1,6 @@
 "use strict";
 exports.__esModule = true;
+exports.DB = void 0;
 //import {mysql} from "mysql"
 var mysql = require("mysql");
 var moment = require('moment');

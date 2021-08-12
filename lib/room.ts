@@ -135,8 +135,7 @@ export class Room extends EventEmitter{
             dataConsumer.close();
 
             _notify(consumerPeer.socket, 'dataConsumerClosed', {
-                dataConsumerId : dataConsumer.id
-            },true, this._roomId);
+                dataConsumerId : dataConsumer.id});
         })
 
         _notify(consumerPeer.socket, 'newDataConsumer', {
@@ -407,7 +406,7 @@ export class Room extends EventEmitter{
                 }
                 let dataProducer;
 
-                if (sctpStreamParameters === undefined) {
+                if (sctpStreamParameters == undefined) {
                     dataProducer = await transport.produceData({
                         protocol
                     })

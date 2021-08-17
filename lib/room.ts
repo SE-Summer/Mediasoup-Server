@@ -5,6 +5,7 @@ import {Socket} from "socket.io";
 import {types as MTypes} from 'mediasoup';
 import {DB} from '../mysql/mysql'
 import {_notify} from "./global";
+import { Producer } from "mediasoup/lib/Producer";
 
 const EventEmitter = require('events').EventEmitter;
 const config = require('../config/config');
@@ -354,6 +355,7 @@ export class Room extends EventEmitter{
                         dtlsParameters : transport.dtlsParameters,
                         sctpParameters : transport.sctpParameters
                     });
+
                 break;
             }
             case RequestMethod.connectWebRtcTransport :
@@ -701,6 +703,49 @@ export class Room extends EventEmitter{
                     iceParameters : iceParameters,
                 });
                 break;
+            }
+
+            case RequestMethod.getStat : {
+                logger.info(`Get Stat : peer ${peer.id}`)
+
+                let allProducer = peer.getAllProducer();
+                let allConsumer = peer.getAllConsumer();
+                let allDataProducer = peer.getAllDataProducer();
+                let allDataConsumer = peer.getAllDataConsumer();
+
+                let allProducerStat = []
+                let allConsumerStat = []
+                let allDataProducerStat = []
+                let allDataConsumerStat = []
+
+                for (let Producer of allProducer) {
+                    allProducerStat.push(await Producer.getStats())
+                }
+
+                for (let Consumer of allConsumer) {
+                    allConsumerStat.push(await Consumer.getStats())
+                }
+
+                for (let dataProducer of allDataProducer) {
+                    allDataProducerStat.push(await dataProducer.getStats())
+                }
+
+                for (let dataConsumer of allDataConsumer) {
+                    allDataConsumerStat.push(await dataConsumer.getStats())
+                }
+
+                console.log('allProducerStat', allProducerStat)
+                console.log('allConsumerStat', allConsumerStat)
+                console.log('allDataProducerStat', allDataProducerStat)
+                console.log('allDataConsumerStat', allDataConsumerStat)
+
+                callback(null, {
+                    'allProducerStat' : allProducerStat,
+                    'allConsumerStat' : allConsumerStat,
+                    'allDataProducerStat' : allDataProducerStat,
+                    'allDataConsumerStat' : allDataConsumerStat
+                })
+
             }
 
             default :

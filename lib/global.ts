@@ -70,7 +70,8 @@ export enum RequestMethod {
     mute = 'mute',
     transferHost = 'transferHost',
     restartIce = 'restartIce',
-    sendFile = 'sendFile'
+    sendFile = 'sendFile',
+    getStat = 'getStat'
 }
 
 let log4js = require('log4js')

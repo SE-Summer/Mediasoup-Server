@@ -87,11 +87,11 @@ module.exports =
                         [
                             {
                                 ip          : process.env.MEDIASOUP_LISTEN_IP || '0.0.0.0',
-                                announcedIp : process.env.MEDIASOUP_ANNOUNCED_IP || '183.142.237.209'
+                                announcedIp : process.env.MEDIASOUP_ANNOUNCED_IP || '122.112.175.61'
                             }
                         ],
                     initialAvailableOutgoingBitrate : 1000000,
-                    minimumAvailableOutgoingBitrate : 600000,
+                    minimumAvailableOutgoingBitrate : 100000,
                     maxSctpMessageSize              : 262144,
                     // Additional options that are not part of WebRtcTransportOptions.
                     maxIncomingBitrate              : 1500000

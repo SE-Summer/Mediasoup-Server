@@ -4,7 +4,6 @@ import {Room} from "./lib/room"
 import {DB} from "./mysql/mysql"
 import {request} from "express";
 import {_notify} from "./lib/global";
-import { max } from "moment";
 
 const http = require('http')
 const https = require('https')

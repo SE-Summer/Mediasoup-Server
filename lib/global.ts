@@ -71,7 +71,11 @@ export enum RequestMethod {
     transferHost = 'transferHost',
     restartIce = 'restartIce',
     sendFile = 'sendFile',
-    getStat = 'getStat'
+    getStat = 'getStat',
+}
+
+export enum NotifyMethod {
+    sendSpeechText = 'sendSpeechText'
 }
 
 let log4js = require('log4js')

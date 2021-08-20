@@ -1,6 +1,6 @@
 import {PeerImpl} from "./peerImpl";
 import {Peer} from './peer';
-import {RequestMethod} from "./global";
+import {NotifyMethod, RequestMethod} from "./global";
 import {Socket} from "socket.io";
 import {types as MTypes} from 'mediasoup';
 import {DB} from '../mysql/mysql'
@@ -168,6 +168,13 @@ export class Room extends EventEmitter{
                     logger.warn(`request failed [${error}]`);
 
                     callback(error, {});
+                })
+        })
+
+        socket.on('notify', (notifyData) => {
+            this._handleNotify(peer, notifyData)
+                .catch((error) => {
+                    logger.warn(`request failed [${error}]`);
                 })
         })
 
@@ -570,6 +577,7 @@ export class Room extends EventEmitter{
                 callback(null);
                 break;
             }
+            
             case RequestMethod.closeRoom :
             {
                 if (this._host !== peer) {
@@ -753,6 +761,19 @@ export class Room extends EventEmitter{
                 callback(error);
                 throw new Error(error);
             }
+        }
+    }
+
+    private async _handleNotify(peer : PeerImpl, notify) {
+        switch (notify.method) {
+            case NotifyMethod.sendSpeechText :
+                {
+                    const {speechText} = notify.data;
+
+                    logger.info(`Send Speech Text : peer ${peer.id}`)
+
+                    _notify(peer.socket, 'newSpeechText', {'speechText' : speechText}, true, this._roomId);
+                }
         }
     }
 

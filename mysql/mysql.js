@@ -12,7 +12,7 @@ var DB = /** @class */ (function () {
         this._connection = mysql.createConnection({
             host: 'localhost',
             user: 'root',
-            password: '655566',
+            password: '123456',
             database: 'test'
         });
         this._connection.connect();

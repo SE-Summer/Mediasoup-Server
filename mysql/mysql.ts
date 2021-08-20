@@ -12,8 +12,8 @@ export class DB {
     constructor() {
         this._connection = mysql.createConnection({
             host: 'localhost',
-            user: 'root',
-            password: '655566',
+	    user: 'root',
+	    password: '123456',
             database: 'test'
         });
 

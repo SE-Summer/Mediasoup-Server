@@ -48,7 +48,7 @@ export class DB {
         )
     }
 
-    isHost(userToken, roomToken, callback){
+    isHost(userToken, roomToken, peerId, callback){
         const queryString = 'select * from rooms where token="'+roomToken+'"';
         this._connection.query(
             queryString,
@@ -61,6 +61,9 @@ export class DB {
                         callback('No Such Room', null);
                     }else{
                         const host = rows[0].host;
+                        if (host !== peerId) {
+                            callback(null, false);
+                        }
                         const queryString2 = 'select * from users where token="'+userToken+'"';
                         this._connection.query(
                             queryString2,

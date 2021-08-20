@@ -1,11 +1,8 @@
 import {PeerImpl} from "./peerImpl";
-import {Peer} from './peer';
 import {NotifyMethod, RequestMethod} from "./global";
-import {Socket} from "socket.io";
 import {types as MTypes} from 'mediasoup';
 import {DB} from '../mysql/mysql'
 import {_notify} from "./global";
-import { Producer } from "mediasoup/lib/Producer";
 
 const EventEmitter = require('events').EventEmitter;
 const config = require('../config/config');
@@ -13,6 +10,12 @@ const {logger} = require('./global');
 const mysqlDB = new DB();
 
 export class Room extends EventEmitter{
+    private _peers: Map<number, PeerImpl> = null;
+    private _roomId: string = null;
+    private _closed: boolean = null;
+    private _router: MTypes.Router = null;
+    private _host: PeerImpl = null;
+
     static async create({ worker, roomId })
     {
         logger.info(`Create Room ${roomId}`);
@@ -39,7 +42,7 @@ export class Room extends EventEmitter{
 
         this._router = router;
 
-        this._peers = new Map<String, Peer>();
+        this._peers = new Map<number, PeerImpl>();
 
         this._host = null;
     }
@@ -149,7 +152,7 @@ export class Room extends EventEmitter{
         });
     }
 
-    handleConnection(peerId, socket){
+    handleConnection(peerId: number, socket){
         let peer;
 
         if (this._peers.has(peerId)) {
@@ -239,7 +242,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.join :
             {
-                const {displayName, avatar,joined, device, rtpCapabilities, sctpCapabilities} = request.data;
+                const {displayName, avatar, joined, device, rtpCapabilities, sctpCapabilities} = request.data;
 
                 if (!rtpCapabilities) {
                     let error = `peer ${peer.id} does not have rtpCapabilities!`;
@@ -577,7 +580,7 @@ export class Room extends EventEmitter{
                 callback(null);
                 break;
             }
-            
+
             case RequestMethod.closeRoom :
             {
                 if (this._host !== peer) {

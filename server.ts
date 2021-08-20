@@ -2,7 +2,6 @@
 import {Server} from "socket.io"
 import {Room} from "./lib/room"
 import {DB} from "./mysql/mysql"
-import {request} from "express";
 import {_notify} from "./lib/global";
 
 const http = require('http')
@@ -314,9 +313,9 @@ const ios = new Server(httpsServer, {
     pingTimeout : 5000,
 })
 
-io.of('/room').on("connection", async (socket)=> {
-    const {roomId, peerId} = socket.handshake.query;
-    mysqlDB.isHost(peerId, roomId, async (error, res) => {
+const handleRoomConnection = async (socket)=> {
+    const {roomId, userToken, peerId} = socket.handshake.query;
+    mysqlDB.isHost(userToken, roomId, peerId, async (error, res) => {
         if (error) {
             logger.warn(`room ${roomId} or peer ${peerId} is illegal!`);
             _notify(socket, 'allowed', {allowed : false});
@@ -334,34 +333,13 @@ io.of('/room').on("connection", async (socket)=> {
                 return;
             }
             _notify(socket, 'allowed', {allowed : true});
-            room.handleConnection(peerId, socket);
+            room.handleConnection(Number.parseInt(peerId), socket);
         }
     })
-})
-ios.of('/room').on("connection", async (socket)=> {
-    const {roomId, peerId} = socket.handshake.query;
-    mysqlDB.isHost(peerId, roomId, async (error, res) => {
-        if (error) {
-            logger.warn(`room ${roomId} or peer ${peerId} is illegal!`);
-            _notify(socket, 'allowed', {allowed : false});
-            setTimeout(() => {
-                socket.disconnect(true);
-            }, 5000);
-            return;
-        } else {
-            const room = await getOrCreateRoom({roomId, host: res});
-            if (room == null) {
-                _notify(socket, 'allowed', {allowed : false});
-                setTimeout(() => {
-                    socket.disconnect(true);
-                }, 5000);
-                return;
-            }
-            _notify(socket, 'allowed', {allowed : true});
-            room.handleConnection(peerId, socket);
-        }
-    })
-})
+}
+
+io.of('/room').on("connection", handleRoomConnection)
+ios.of('/room').on("connection", handleRoomConnection);
 
 httpServer.listen(4446, function () { logger.info('http Listening on port 4446') });
 httpsServer.listen(4445, function () { logger.info('https Listening on port 4445') });

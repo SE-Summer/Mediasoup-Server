@@ -58,7 +58,7 @@ export class DB {
                 if (rows.length === 0) {
                     callback('No Such User', null);
                     return;
-                } else if (rows[0].userToken !== userToken) {
+                } else if (rows[0].token !== userToken) {
                     callback('Wrong userToken', null);
                     return;
                 }

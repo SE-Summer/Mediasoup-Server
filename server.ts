@@ -314,7 +314,9 @@ const ios = new Server(httpsServer, {
 
 const handleRoomConnection = async (socket)=> {
     const {roomId, userToken, peerId} = socket.handshake.query;
-    mysqlDB.isHost(userToken, roomId, peerId, async (error, res) => {
+    const _peerId = Number.parseInt(peerId);
+    mysqlDB.isHost(userToken, roomId, _peerId, async (error, res) => {
+        console.log(error, res);
         if (error) {
             logger.warn(`room ${roomId} or peer ${peerId} is illegal!`);
             _notify(socket, 'allowed', {allowed : false});
@@ -323,7 +325,7 @@ const handleRoomConnection = async (socket)=> {
             }, 5000);
             return;
         } else {
-            const room = await getOrCreateRoom({roomId, host: res, peerId });
+            const room = await getOrCreateRoom({ roomId, host: res, peerId });
             if (room == null) {
                 _notify(socket, 'allowed', {allowed : false});
                 setTimeout(() => {
@@ -332,7 +334,7 @@ const handleRoomConnection = async (socket)=> {
                 return;
             }
             _notify(socket, 'allowed', {allowed : true});
-            room.handleConnection(Number.parseInt(peerId), socket);
+            room.handleConnection(_peerId, socket);
         }
     })
 }
@@ -354,7 +356,7 @@ async function getOrCreateRoom({ roomId, host, peerId })
             return null;
         }
 
-        //logger.info('creating a new Room [roomId:%s]', roomId);
+        // logger.info('creating a new Room [roomId:%s]', roomId);
         let worker = getWorker();
         room = await Room.create({ worker , roomId, hostId: peerId });
 

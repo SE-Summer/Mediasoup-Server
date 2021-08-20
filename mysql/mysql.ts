@@ -48,48 +48,43 @@ export class DB {
         )
     }
 
-    isHost(userToken, roomToken, peerId, callback){
-        const queryString = 'select * from rooms where token="'+roomToken+'"';
-        this._connection.query(
-            queryString,
-            (err, rows)=>{
-                if(err){
-                    logger.error('[SQL_SELECT_ERROR] ', err.message);
-                    callback('SSE', null)
-                }else{
-                    if (rows.length === 0){
-                        callback('No Such Room', null);
-                    }else{
-                        const host = rows[0].host;
-                        if (host !== peerId) {
-                            callback(null, false);
-                        }
-                        const queryString2 = 'select * from users where token="'+userToken+'"';
-                        this._connection.query(
-                            queryString2,
-                            (err, rows)=>{
-                                if(err){
-                                    logger.error('[SQL_SELECT_ERROR] ', err.message);
-                                    callback('SSE', null)
-                                }else{
-                                    if (rows.length === 0){
-                                        callback('No Such User', null);
-                                    }else if (rows[0].id === host){
-                                        callback(null, true);
-                                    }else{
-                                        callback(null, false);
-                                    }
-                                }
-                            }
-                        )
-                    }
+    isHost(userToken, roomToken, peerId: number, callback){
+        const queryUserString = `select * from users where id=${peerId} limit 1`
+        this._connection.query(queryUserString, (err, rows) => {
+            if (err){
+                logger.error('[SQL_SELECT_ERROR] ', err.message);
+                callback('SSE', null);
+            } else {
+                if (rows.length === 0) {
+                    callback('No Such User', null);
+                    return;
+                } else if (rows[0].userToken !== userToken) {
+                    callback('Wrong userToken', null);
+                    return;
                 }
+                const queryRoomString = `select * from rooms where token="${roomToken}" limit 1`
+                this._connection.query(queryRoomString, (err, rows) => {
+                    if (err) {
+                        logger.error('[SQL_SELECT_ERROR] ', err.message);
+                        callback('SSE', null);
+                    } else {
+                        if (rows.length === 0) {
+                            callback('No Such Room', null);
+                        } else {
+                            if (peerId === rows[0].host){
+                                callback(null, true);
+                            } else{
+                                callback(null, false);
+                            }
+                        }
+                    }
+                });
             }
-        )
+        });
     }
 
-    setHost(userToken, roomToken, callback){
-        const queryString = 'select * from users where token="'+userToken+'"';
+    setHost(userId: number, roomToken, callback){
+        const queryString = `select * from users where id=${userId} limit 1`;
         this._connection.query(
             queryString,
             (err, rows)=>{
@@ -100,8 +95,7 @@ export class DB {
                     if (rows.length === 0){
                         callback('No Such User', null);
                     }else{
-                        const id = rows[0].id;
-                        const queryString2 = 'update rooms set host='+id+' where token="'+roomToken+'"';
+                        const queryString2 = 'update rooms set host='+userId+' where token="'+roomToken+'"';
                         this._connection.query(
                             queryString2,
                             (err, ok)=>{

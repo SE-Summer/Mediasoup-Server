@@ -10,13 +10,14 @@ const {logger} = require('./global');
 const mysqlDB = new DB();
 
 export class Room extends EventEmitter{
-    private _peers: Map<number, PeerImpl> = null;
-    private _roomId: string = null;
+    private readonly _peers: Map<number, PeerImpl> = null;
+    private readonly _roomId: string = null;
     private _closed: boolean = null;
     private _router: MTypes.Router = null;
     private _host: PeerImpl = null;
+    private readonly _hostId: number = null;
 
-    static async create({ worker, roomId })
+    static async create({ hostId, worker, roomId })
     {
         logger.info(`Create Room ${roomId}`);
 
@@ -27,11 +28,12 @@ export class Room extends EventEmitter{
         return new Room(
             {
                 roomId,
+                hostId,
                 router
             });
     }
 
-    constructor({ roomId, router})
+    constructor({ roomId, hostId, router })
     {
         super();
         this.setMaxListeners(Infinity);
@@ -44,7 +46,7 @@ export class Room extends EventEmitter{
 
         this._peers = new Map<number, PeerImpl>();
 
-        this._host = null;
+        this._hostId = hostId;
     }
 
     _getJoinedPeers({ excludePeer = undefined } = {})
@@ -262,69 +264,57 @@ export class Room extends EventEmitter{
                     throw Error (error);
                 }
 
-                let host = false;
+                if (this._hostId == peer.id) {
+                    logger.info(`Join : [Host] ${peer.id}`);
+                    this._host = peer;
+                } else {
+                    logger.info(`Join : [Member] ${peer.id}!`);
+                }
 
-                mysqlDB.isHost(peer.id, this._roomId, async (error, res) => {
-                    if (error) {
-                        callback(error);
-                        throw Error (error);
-                    }
-                    else {
-                        host = res;
+                peer.setPeerInfo({
+                    displayName : displayName,
+                    avatar : avatar,
+                    joined : true,
+                    closed : false,
+                    device : device,
+                    rtpCapabilities : rtpCapabilities,
+                    sctpCapabilities : sctpCapabilities
+                });
 
-                        if (host) {
-                            logger.info(`Join : [Host] ${peer.id}`);
-                            this._host = peer;
-                        } else {
-                            logger.info(`Join : [Member] ${peer.id}!`);
-                        }
+                _notify(peer.socket, 'newPeer', {
+                    id : peer.id,
+                    displayName : displayName,
+                    avatar : avatar,
+                    device : device
+                }, true, this._roomId);
 
-                        peer.setPeerInfo({
-                            displayName : displayName,
-                            avatar : avatar,
-                            joined : true,
-                            closed : false,
-                            device : device,
-                            rtpCapabilities : rtpCapabilities,
-                            sctpCapabilities : sctpCapabilities
-                        });
+                peer.socket.join(this._roomId);
+                this._peers.set(peer.id, peer);
 
-                        _notify(peer.socket, 'newPeer', {
-                            id : peer.id,
-                            displayName : displayName,
-                            avatar : avatar,
-                            device : device
-                        }, true, this._roomId);
+                const joinedPeers = this._getJoinedPeers({excludePeer : peer});
+                const peerInfos = [];
 
-                        peer.socket.join(this._roomId);
-                        this._peers.set(peer.id, peer);
+                joinedPeers.forEach((joinedPeer) => {
+                    peerInfos.push({
+                        id : joinedPeer.id,
+                        displayName : joinedPeer.displayName,
+                        avatar : joinedPeer.avatar,
+                        device : joinedPeer.device
+                    });
 
-                        const joinedPeers = this._getJoinedPeers({excludePeer : peer});
-                        const peerInfos = [];
+                    joinedPeer.getAllProducer().forEach((producer) => {
+                        this.createConsumer(peer, joinedPeer, producer);
+                    });
 
-                        joinedPeers.forEach((joinedPeer) => {
-                            peerInfos.push({
-                                id : joinedPeer.id,
-                                displayName : joinedPeer.displayName,
-                                avatar : joinedPeer.avatar,
-                                device : joinedPeer.device
-                            });
-
-                            joinedPeer.getAllProducer().forEach((producer) => {
-                                this.createConsumer(peer, joinedPeer, producer);
-                            });
-
-                            joinedPeer.getAllDataProducer().forEach((dataProducer) => {
-                                this.createDataConsumer(peer, joinedPeer, dataProducer);
-                            })
-                        })
-
-                        callback(null, {
-                            host : this._host.id,
-                            peerInfos
-                        });
-                    }
+                    joinedPeer.getAllDataProducer().forEach((dataProducer) => {
+                        this.createDataConsumer(peer, joinedPeer, dataProducer);
+                    })
                 })
+
+                callback(null, {
+                    host : this._host.id,
+                    peerInfos
+                });
                 break;
             }
             case RequestMethod.createTransport :

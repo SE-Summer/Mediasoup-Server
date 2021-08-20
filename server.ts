@@ -1,4 +1,3 @@
-
 import {Server} from "socket.io"
 import {Room} from "./lib/room"
 import {DB} from "./mysql/mysql"
@@ -324,7 +323,7 @@ const handleRoomConnection = async (socket)=> {
             }, 5000);
             return;
         } else {
-            const room = await getOrCreateRoom({roomId, host: res});
+            const room = await getOrCreateRoom({roomId, host: res, peerId });
             if (room == null) {
                 _notify(socket, 'allowed', {allowed : false});
                 setTimeout(() => {
@@ -343,7 +342,7 @@ ios.of('/room').on("connection", handleRoomConnection);
 
 httpServer.listen(4446, function () { logger.info('http Listening on port 4446') });
 httpsServer.listen(4445, function () { logger.info('https Listening on port 4445') });
-async function getOrCreateRoom({ roomId, host })
+async function getOrCreateRoom({ roomId, host, peerId })
 {
     let room = rooms.get(roomId);
 
@@ -357,7 +356,7 @@ async function getOrCreateRoom({ roomId, host })
 
         //logger.info('creating a new Room [roomId:%s]', roomId);
         let worker = getWorker();
-        room = await Room.create({worker , roomId });
+        room = await Room.create({ worker , roomId, hostId: peerId });
 
         rooms.set(roomId, room);
         room.on('close', () => {

@@ -47,6 +47,8 @@ export class Room extends EventEmitter{
         this._peers = new Map<number, PeerImpl>();
 
         this._hostId = hostId;
+
+        console.log(`Room created, roomId = ${this._roomId}`);
     }
 
     _getJoinedPeers({ excludePeer = undefined } = {})
@@ -194,6 +196,7 @@ export class Room extends EventEmitter{
                     let newHost : PeerImpl = peerArray[random]
                     logger.debug(newHost.id, this._roomId)
                     mysqlDB.setHost(newHost.id, this._roomId, (error, res) => {
+                        console.log(`setHost: error: ${error}, result: ${res}`);
                         if (res) {
                             logger.info(`TransferHostBeforeClose : transfer host from ${peer.id} to ${newHost.id}`);
                             this._host = newHost;
@@ -673,9 +676,11 @@ export class Room extends EventEmitter{
                 }
 
                 mysqlDB.setHost(hostId, this._roomId, (error, res) => {
+                    console.log(`setHost: error: ${error}, result: ${res}`);
                    if (res) {
                        logger.info(`TransferHost : transfer host from ${peer.id} to ${hostId}`);
                        this._host = newHost;
+                       this._hostId = newHost.id;
                        _notify(peer.socket, 'hostChanged', {newHostId : hostId}, true, this._roomId);
                        callback();
                    } else {

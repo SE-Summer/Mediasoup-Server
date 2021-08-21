@@ -15,7 +15,7 @@ export class Room extends EventEmitter{
     private _closed: boolean = null;
     private _router: MTypes.Router = null;
     private _host: PeerImpl = null;
-    private readonly _hostId: number = null;
+    private _hostId: number = null;
 
     static async create({ hostId, worker, roomId })
     {
@@ -192,13 +192,15 @@ export class Room extends EventEmitter{
                     peerArray.splice(peerArray.indexOf(peer),1);
                     let random = Math.floor(Math.random() * peerArray.length);
                     let newHost : PeerImpl = peerArray[random]
+                    logger.debug(newHost.id, this._roomId)
                     mysqlDB.setHost(newHost.id, this._roomId, (error, res) => {
                         if (res) {
                             logger.info(`TransferHostBeforeClose : transfer host from ${peer.id} to ${newHost.id}`);
                             this._host = newHost;
+                            this._hostId = newHost.id;
                             _notify(peer.socket, 'hostChanged', {newHostId : newHost.id}, true, this._roomId);
                         } else {
-                            throw Error (error);
+                            logger.warn(`set host Error : ${error}`);
                         }
                      });
                 }

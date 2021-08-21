@@ -107,7 +107,7 @@ export class DB {
     }
 
     setHost(userId: number, roomToken, callback){
-        const queryString = `select * from users where id=${userId} limit 1`;
+        const queryString = `select * from users where id=` + userId;
         this._connection.query(
             queryString,
             (err, rows)=>{

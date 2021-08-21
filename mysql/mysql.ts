@@ -12,8 +12,8 @@ export class DB {
     constructor() {
         this._connection = mysql.createConnection({
             host: 'localhost',
-	    user: 'root',
-	    password: '123456',
+	        user: 'root',
+	        password: '655566',
             database: 'test'
         });
 
@@ -42,6 +42,29 @@ export class DB {
                     logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null)
                 }else{
+                    rows.forEach((row)=>{
+                        row.start_time = moment(row.start_time).format('YYYY-MM-DD HH:mm')
+                        row.end_time = moment(row.end_time).format('YYYY-MM-DD HH:mm')
+                    })
+                    callback(null, rows)
+                }
+            }
+        )
+    }
+
+    getHistory(token, callback){
+        this._connection.query(
+            'select r.id, r.token, r.password, r.host, r.end_time, r.start_time, r.topic, r.max_num, h.time from rooms r, users u, history h where u.id=h.userId and r.id=h.roomId and u.token="' + token +'" order by h.time desc',
+            (err, rows)=>{
+                if(err){
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
+                    callback('SSE', null)
+                }else{
+                    rows.forEach((row)=>{
+                        row.start_time = moment(row.start_time).format('YYYY-MM-DD HH:mm')
+                        row.end_time = moment(row.end_time).format('YYYY-MM-DD HH:mm')
+                        row.time = moment(row.time).format('YYYY-MM-DD HH:mm')
+                    })
                     callback(null, rows)
                 }
             }
@@ -293,8 +316,8 @@ export class DB {
         )
     }
 
-    getRoom(id, password, callback){
-        const queryString = 'select * from rooms where id='+id
+    getRoom(id, password, userToken, callback){
+        const queryString = 'select * from users where token="'+ userToken + '"'
         this._connection.query(
             queryString,
             (err, rows)=>{
@@ -302,23 +325,50 @@ export class DB {
                     logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SEE', null)
                 }else{
-                    const room = rows[0];
-                    if(room){
-                        room.start_time = moment(room.start_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm');
-                        room.end_time = moment(room.end_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm');
-                        const now_time = moment().format('YYYY-MM-DD HH:mm');
-                        if(room.password === password){
-                            if(room.start_time > now_time || room.end_time < now_time){
-                                logger.error(room.start_time, room.end_time, now_time)
-                                callback("Invalid Time", room);
-                            }else{
-                                callback(null, room);
-                            }
-                        }else{
-                            callback('Unauthorized', null)
-                        }
+                    if (rows.length === 0){
+                        callback('Wrong userToken', null)
                     }else{
-                        callback("No Such Room", null)
+                        let userId = rows[0].id
+                        const queryString2 = 'select * from rooms where id='+id
+                        this._connection.query(
+                            queryString2,
+                            (err, rows)=>{
+                                if(err){
+                                    logger.error('[SQL_SELECT_ERROR] ', err.message);
+                                    callback('SEE', null)
+                                }else{
+                                    const room = rows[0];
+                                    if(room){
+                                        room.start_time = moment(room.start_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm');
+                                        room.end_time = moment(room.end_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm');
+                                        const now_time = moment().format('YYYY-MM-DD HH:mm');
+                                        if(room.password === password){
+                                            if(room.start_time > now_time || room.end_time < now_time){
+                                                logger.error(room.start_time, room.end_time, now_time)
+                                                callback("Invalid Time", room);
+                                            }else{
+                                                const queryString3 = 'insert into history set userId = '+userId+', roomId='+id+ ', time="'+now_time+'"';
+                                                this._connection.query(
+                                                    queryString3,
+                                                    (err, rows)=>{
+                                                        if(err){
+                                                            logger.error('[SQL_INSERT_ERROR] ', err.message);
+                                                            callback('SEE', null)
+                                                        }else{
+                                                            callback(null, room);
+                                                        }
+                                                    }
+                                                    )
+                                            }
+                                        }else{
+                                            callback('Unauthorized', null)
+                                        }
+                                    }else{
+                                        callback("No Such Room", null)
+                                    }
+                                }
+                            }
+                        )
                     }
                 }
             }

@@ -64,6 +64,19 @@ app.post(
 )
 
 app.post(
+    '/getHistory',
+    (req, res)=>{
+        const {token} = req.body;
+        logger.info(`Post GetHistory : token-${token}`);
+        mysqlDB.getHistory(token, (err, rows)=>{
+            res.status(200).json({
+                "history": rows,
+            })
+        });
+    }
+)
+
+app.post(
     '/register',
     (req, res)=>{
         const {token, nickname, password} = req.body
@@ -169,9 +182,9 @@ app.post(
 app.post(
     '/getRoom',
     (req, res)=>{
-        const {id, password} = req.body
+        const {id, password, token} = req.body
         logger.info(`Post GetRoom : id-${id} password-${password}`)
-        mysqlDB.getRoom(id, password,(err, room)=>{
+        mysqlDB.getRoom(id, password, token,(err, room)=>{
             if (err){
                 res.status(401).json({
                     "error": err,

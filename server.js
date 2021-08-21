@@ -88,6 +88,15 @@ app.post('/getReservations', function (req, res) {
         });
     });
 });
+app.post('/getHistory', function (req, res) {
+    var token = req.body.token;
+    logger.info("Post GetHistory : token-" + token);
+    mysqlDB.getHistory(token, function (err, rows) {
+        res.status(200).json({
+            "history": rows
+        });
+    });
+});
 app.post('/register', function (req, res) {
     var _a = req.body, token = _a.token, nickname = _a.nickname, password = _a.password;
     logger.info("Post Register : token-" + token + " nickname-" + nickname + " password-" + password);
@@ -178,9 +187,9 @@ app.post('/autoLogin', function (req, res) {
     });
 });
 app.post('/getRoom', function (req, res) {
-    var _a = req.body, id = _a.id, password = _a.password;
+    var _a = req.body, id = _a.id, password = _a.password, token = _a.token;
     logger.info("Post GetRoom : id-" + id + " password-" + password);
-    mysqlDB.getRoom(id, password, function (err, room) {
+    mysqlDB.getRoom(id, password, token, function (err, room) {
         if (err) {
             res.status(401).json({
                 "error": err,
@@ -304,15 +313,17 @@ var io = new socket_io_1.Server(httpServer, {
 var ios = new socket_io_1.Server(httpsServer, {
     pingTimeout: 5000
 });
-io.of('/room').on("connection", function (socket) { return __awaiter(void 0, void 0, void 0, function () {
-    var _a, roomId, peerId;
+var handleRoomConnection = function (socket) { return __awaiter(void 0, void 0, void 0, function () {
+    var _a, roomId, userToken, peerId, _peerId;
     return __generator(this, function (_b) {
-        _a = socket.handshake.query, roomId = _a.roomId, peerId = _a.peerId;
-        mysqlDB.isHost(peerId, roomId, function (error, res) { return __awaiter(void 0, void 0, void 0, function () {
+        _a = socket.handshake.query, roomId = _a.roomId, userToken = _a.userToken, peerId = _a.peerId;
+        _peerId = Number.parseInt(peerId);
+        mysqlDB.isHost(userToken, roomId, _peerId, function (error, res) { return __awaiter(void 0, void 0, void 0, function () {
             var room;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
+                        console.log(error, res);
                         if (!error) return [3 /*break*/, 1];
                         logger.warn("room " + roomId + " or peer " + peerId + " is illegal!");
                         global_1._notify(socket, 'allowed', { allowed: false });
@@ -320,7 +331,7 @@ io.of('/room').on("connection", function (socket) { return __awaiter(void 0, voi
                             socket.disconnect(true);
                         }, 5000);
                         return [2 /*return*/];
-                    case 1: return [4 /*yield*/, getOrCreateRoom({ roomId: roomId, host: res })];
+                    case 1: return [4 /*yield*/, getOrCreateRoom({ roomId: roomId, host: res, peerId: peerId })];
                     case 2:
                         room = _a.sent();
                         if (room == null) {
@@ -331,7 +342,7 @@ io.of('/room').on("connection", function (socket) { return __awaiter(void 0, voi
                             return [2 /*return*/];
                         }
                         global_1._notify(socket, 'allowed', { allowed: true });
-                        room.handleConnection(peerId, socket);
+                        room.handleConnection(_peerId, socket);
                         _a.label = 3;
                     case 3: return [2 /*return*/];
                 }
@@ -339,47 +350,13 @@ io.of('/room').on("connection", function (socket) { return __awaiter(void 0, voi
         }); });
         return [2 /*return*/];
     });
-}); });
-ios.of('/room').on("connection", function (socket) { return __awaiter(void 0, void 0, void 0, function () {
-    var _a, roomId, peerId;
-    return __generator(this, function (_b) {
-        _a = socket.handshake.query, roomId = _a.roomId, peerId = _a.peerId;
-        mysqlDB.isHost(peerId, roomId, function (error, res) { return __awaiter(void 0, void 0, void 0, function () {
-            var room;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        if (!error) return [3 /*break*/, 1];
-                        logger.warn("room " + roomId + " or peer " + peerId + " is illegal!");
-                        global_1._notify(socket, 'allowed', { allowed: false });
-                        setTimeout(function () {
-                            socket.disconnect(true);
-                        }, 5000);
-                        return [2 /*return*/];
-                    case 1: return [4 /*yield*/, getOrCreateRoom({ roomId: roomId, host: res })];
-                    case 2:
-                        room = _a.sent();
-                        if (room == null) {
-                            global_1._notify(socket, 'allowed', { allowed: false });
-                            setTimeout(function () {
-                                socket.disconnect(true);
-                            }, 5000);
-                            return [2 /*return*/];
-                        }
-                        global_1._notify(socket, 'allowed', { allowed: true });
-                        room.handleConnection(peerId, socket);
-                        _a.label = 3;
-                    case 3: return [2 /*return*/];
-                }
-            });
-        }); });
-        return [2 /*return*/];
-    });
-}); });
+}); };
+io.of('/room').on("connection", handleRoomConnection);
+ios.of('/room').on("connection", handleRoomConnection);
 httpServer.listen(4446, function () { logger.info('http Listening on port 4446'); });
 httpsServer.listen(4445, function () { logger.info('https Listening on port 4445'); });
 function getOrCreateRoom(_a) {
-    var roomId = _a.roomId, host = _a.host;
+    var roomId = _a.roomId, host = _a.host, peerId = _a.peerId;
     return __awaiter(this, void 0, void 0, function () {
         var room, worker;
         return __generator(this, function (_b) {
@@ -392,7 +369,7 @@ function getOrCreateRoom(_a) {
                         return [2 /*return*/, null];
                     }
                     worker = getWorker();
-                    return [4 /*yield*/, room_1.Room.create({ worker: worker, roomId: roomId })];
+                    return [4 /*yield*/, room_1.Room.create({ worker: worker, roomId: roomId, hostId: peerId })];
                 case 1:
                     room = _b.sent();
                     rooms.set(roomId, room);

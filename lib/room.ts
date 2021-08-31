@@ -62,6 +62,22 @@ export class Room extends EventEmitter{
         return filteredPeers;
     }
 
+    _doOnJoinedPeers(excludePeer: PeerImpl, callback: (peerImpl: PeerImpl) => void)
+    {
+        if (excludePeer == null) {
+            this._peers.forEach((peerImpl) => {
+                callback(peerImpl);
+            });
+        } else {
+            const excludeId: number = excludePeer.id;
+            this._peers.forEach((peerImpl, id) => {
+                if (id !== excludeId) {
+                    callback(peerImpl);
+                }
+            });
+        }
+    }
+
     async createConsumer(consumerPeer : PeerImpl, producerPeer : PeerImpl, producer : MTypes.Producer) {
         if (!consumerPeer) {
             throw new Error(`peer with id "${consumerPeer.id}" does not exist`);
@@ -83,7 +99,8 @@ export class Room extends EventEmitter{
         const consumer = await consumerPeer.getConsumerTransport().consume(
             {
                 producerId : producer.id,
-                rtpCapabilities : consumerPeer.getPeerInfo().rtpCapabilities
+                rtpCapabilities : consumerPeer.getPeerInfo().rtpCapabilities,
+                paused: true
             });
 
         consumerPeer.setConsumer(consumer.id, consumer);
@@ -296,10 +313,9 @@ export class Room extends EventEmitter{
                 peer.socket.join(this._roomId);
                 this._peers.set(peer.id, peer);
 
-                const joinedPeers = this._getJoinedPeers({excludePeer : peer});
                 const peerInfos = [];
 
-                joinedPeers.forEach((joinedPeer) => {
+                this._doOnJoinedPeers(peer, (joinedPeer) => {
                     peerInfos.push({
                         id : joinedPeer.id,
                         displayName : joinedPeer.displayName,
@@ -313,7 +329,7 @@ export class Room extends EventEmitter{
 
                     joinedPeer.getAllDataProducer().forEach((dataProducer) => {
                         this.createDataConsumer(peer, joinedPeer, dataProducer);
-                    })
+                    });
                 })
 
                 callback(null, {
@@ -389,15 +405,13 @@ export class Room extends EventEmitter{
                 }
 
                 appData = {...appData, peerId : peer.id};
-                const producer = await transport.produce(
-                    {kind,rtpParameters,appData});
+                const producer = await transport.produce({kind,rtpParameters,appData});
                 peer.setProducer(producer.id, producer);
                 callback(null, {producerId : producer.id});
 
-                const joinedPeers = this._getJoinedPeers({excludePeer : peer});
-                joinedPeers.forEach((joinedPeer) => {
+                this._doOnJoinedPeers(peer, (joinedPeer) => {
                     this.createConsumer(joinedPeer, peer, producer);
-                })
+                });
                 break;
             }
             case RequestMethod.produceData :
@@ -428,12 +442,9 @@ export class Room extends EventEmitter{
 
                 callback(null, {id : dataProducer.id});
 
-                const joinedPeers = this._getJoinedPeers({excludePeer : peer});
-
-                joinedPeers.forEach((joinedPeer) => {
+                this._doOnJoinedPeers(peer, (joinedPeer) => {
                     this.createDataConsumer(joinedPeer, peer, dataProducer);
-                })
-
+                });
                 break;
             }
             case RequestMethod.closeProducer :
@@ -575,7 +586,6 @@ export class Room extends EventEmitter{
                 callback(null);
                 break;
             }
-
             case RequestMethod.closeRoom :
             {
                 if (this._host !== peer) {
@@ -711,7 +721,6 @@ export class Room extends EventEmitter{
                 });
                 break;
             }
-
             case RequestMethod.getStat : {
                 logger.info(`Get Stat : peer ${peer.id}`)
 
@@ -752,12 +761,11 @@ export class Room extends EventEmitter{
                     'allDataProducerStat' : allDataProducerStat,
                     'allDataConsumerStat' : allDataConsumerStat
                 })
-
+                break;
             }
-
             default :
             {
-                let error = `Unknown Request ${request.method}`;
+                const error = `Unknown Request ${request.method}`;
                 callback(error);
                 throw new Error(error);
             }
@@ -767,13 +775,17 @@ export class Room extends EventEmitter{
     private async _handleNotify(peer : PeerImpl, notify) {
         switch (notify.method) {
             case NotifyMethod.sendSpeechText :
-                {
-                    const {speechText} = notify.data;
-
-                    logger.info(`Send Speech Text : peer ${peer.id}`)
-
-                    _notify(peer.socket, 'newSpeechText', {'speechText' : speechText}, true, this._roomId);
-                }
+            {
+                const {speechText} = notify.data;
+                logger.info(`Send Speech Text : peer ${peer.id}`)
+                _notify(peer.socket, 'newSpeechText', {'speechText' : speechText}, true, this._roomId);
+                break;
+            }
+            default :
+            {
+                const error = `Unknown Notify ${notify.method}`;
+                throw new Error(error);
+            }
         }
     }
 

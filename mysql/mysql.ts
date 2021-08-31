@@ -1,4 +1,3 @@
-//import {mysql} from "mysql"
 const mysql = require("mysql")
 const moment = require('moment');
 import { logger } from '../lib/global';
@@ -10,13 +9,24 @@ export class DB {
     private _connection;
 
     constructor() {
+        this.connectDB()
+    }
+
+    connectDB() {
         this._connection = mysql.createConnection({
             host: 'localhost',
-	        user: 'root',
-	        password: '123456',
+            user: 'root',
+            password: '123456',
             database: 'test'
         });
 
+        this._connection.on('error', (error) => {
+            logger.error('DB_ERROR', error.message)
+            if (error.code === 'PROTOCOL_CONNECTION_LOST') {
+                logger.error('[DB_CONNECTION_LOST] Try to reconnect...')
+                this.connectDB()
+            }
+        })
         this._connection.connect();
     }
 

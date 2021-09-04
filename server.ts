@@ -42,7 +42,7 @@ app.use(multer({ dest: '/tmp/'}).array('file'));
 app.get(
     '/users',
     (req, res)=>{
-        mysqlDB.getUsers((rows)=>{
+        mysqlDB.getUsers((err, rows)=>{
             res.status(200).json({
                 "users": rows
             })
@@ -138,18 +138,14 @@ app.post(
     (req, res)=>{
         const {email, password} = req.body;
         logger.info(`Post Login : email-${email} password-${password}`)
-        mysqlDB.login(email, password,(err, rows)=>{
+        mysqlDB.login(email, password,(err, user)=>{
             if (err){
                 res.status(401).json({
                     "error": err
                 })
-            }else if(rows.length===0){
-                res.status(401).json({
-                    "error": "Unauthorized"
-                })
             }else{
                 res.status(200).json({
-                    "user": rows[0]
+                    "user": user
                 })
             }
         });
@@ -161,18 +157,14 @@ app.post(
     (req, res)=>{
         const {token} = req.body;
         logger.info(`Post AutoLogin : token-${token}`)
-        mysqlDB.autoLogin(token,(err, rows)=>{
-            if (err){
+        mysqlDB.autoLogin(token,(err, user)=>{
+            if (err) {
                 res.status(401).json({
                     "error": err
                 })
-            }else if(rows.length===0){
-                res.status(401).json({
-                    "error": "Unauthorized"
-                })
-            }else{
+            } else {
                 res.status(200).json({
-                    "user": rows[0]
+                    "user": user
                 })
             }
         });
@@ -204,14 +196,14 @@ app.post(
     (req, res)=>{
         const {token, password, topic, start_time, end_time, max_num} = req.body
         logger.info(`Post Reserve : token-${token} password-${password} topic-${topic} start_time${start_time} end_time-${end_time} max_num-${max_num}`)
-        mysqlDB.appoint(token, password, start_time, end_time, max_num, topic, (err, rows)=>{
+        mysqlDB.appoint(token, password, start_time, end_time, max_num, topic, (err, room)=>{
             if (err){
                 res.status(401).json({
                     "error": err
                 })
             }else{
                 res.status(200).json({
-                    "room": rows[0]
+                    "room": room
                 })
             }
         });

@@ -306,7 +306,7 @@ export class DB {
                                     topic,
                                     max_num
                                 }
-                                callback(room, null)
+                                callback(null, room)
                             }
                         })
                     }
@@ -341,7 +341,7 @@ export class DB {
                             if (start_time.isAfter(now_time) || end_time.isBefore(now_time)) {
                                 callback("Invalid Time", room);
                             } else {
-                                const insertHistoryString = `insert into history set userId = ${userId}, roomId=${id}, time="${now_time}"`
+                                const insertHistoryString = `insert into history set userId = ${userId}, roomId=${id}, time="${now_time.format('YYYY-MM-DD HH:mm')}"`
                                 this._connection.query(insertHistoryString, (err, ok) => {
                                     if (err) {
                                         logger.error('[SQL_INSERT_ERROR] ', err.message);

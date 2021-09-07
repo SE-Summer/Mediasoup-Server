@@ -311,10 +311,12 @@ createWorkers();
 
 const io = new Server(httpServer, {
     pingTimeout : 5000,
+    cors: { origin: '*' }
 })
 
 const ios = new Server(httpsServer, {
     pingTimeout : 5000,
+    cors: { origin: '*' }
 })
 
 const handleRoomConnection = async (socket)=> {

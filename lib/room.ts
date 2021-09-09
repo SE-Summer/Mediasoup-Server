@@ -207,17 +207,21 @@ export class Room extends EventEmitter{
 
         socket.on('disconnect', () => {
             logger.info(`Peer ${peer.id} disconnected!`);
-            lock.acquire('disconnect', (done) => {
+            lock.acquire('disconnect', (unlockRead) => {
                 let currentHostId = this._hostId;
-                done();
-                if (currentHostId === peer) {
-                    lock.acquire('disconnect', (done) => {
-                        // @ts-ignore
-                        for (let peerImpl of this._peers.values()) {
+                unlockRead();
+                if (currentHostId === peer.id) {
+                    lock.acquire('disconnect', (unlockWrite) => {
+                        const peers = Array.from(this._peers.values());
+                        const peersLength = peers.length;
+                        let shouldUnlock = true;
+                        for (let i = 0; i < peersLength; ++i) {
+                            const peerImpl = peers[i];
                             if (peerImpl.socket.connected) {
                                 this._host = peerImpl;
                                 this._hostId = peerImpl.id;
-                                done();
+                                unlockWrite();
+                                shouldUnlock = false;
                                 console.log(`new host id: ${peerImpl.id}`);
                                 mysqlDB.setHost(peerImpl.id, this._roomId, (error, res) => {
                                     console.log(`setHost: error: ${error}, result: ${res}`);
@@ -231,6 +235,7 @@ export class Room extends EventEmitter{
                                 break;
                             }
                         }
+                        shouldUnlock && unlockWrite()
                     });
                     logger.info(`Host ${peer.id} Exit`);
                 } else {

@@ -3,11 +3,14 @@ import {NotifyMethod, RequestMethod} from "./global";
 import {types as MTypes} from 'mediasoup';
 import {DB} from '../mysql/mysql'
 import {_notify} from "./global";
+import * as socketio from 'socket.io';
 
 const EventEmitter = require('events').EventEmitter;
 const config = require('../config/config');
 const {logger} = require('./global');
+const AsyncLock = require('async-lock');
 const mysqlDB = new DB();
+const lock = new AsyncLock();
 
 export class Room extends EventEmitter{
     private readonly _peers: Map<number, PeerImpl> = null;
@@ -173,7 +176,7 @@ export class Room extends EventEmitter{
         });
     }
 
-    handleConnection(peerId: number, socket){
+    handleConnection(peerId: number, socket: socketio.Socket){
         let peer;
 
         if (this._peers.has(peerId)) {
@@ -204,29 +207,37 @@ export class Room extends EventEmitter{
 
         socket.on('disconnect', () => {
             logger.info(`Peer ${peer.id} disconnected!`);
-            if (this._host === peer) {
-                logger.info(`Host ${peer.id} Exit`);
-                let peerArray : PeerImpl [] = Array.from(this._peers.values());
-                if (peerArray.length > 1) {
-                    peerArray.splice(peerArray.indexOf(peer),1);
-                    let random = Math.floor(Math.random() * peerArray.length);
-                    let newHost : PeerImpl = peerArray[random]
-                    logger.debug(newHost.id, this._roomId)
-                    mysqlDB.setHost(newHost.id, this._roomId, (error, res) => {
-                        console.log(`setHost: error: ${error}, result: ${res}`);
-                        if (res) {
-                            logger.info(`TransferHostBeforeClose : transfer host from ${peer.id} to ${newHost.id}`);
-                            this._host = newHost;
-                            this._hostId = newHost.id;
-                            _notify(peer.socket, 'hostChanged', {newHostId : newHost.id}, true, this._roomId);
-                        } else {
-                            logger.warn(`set host Error : ${error}`);
+            lock.acquire('disconnect', (done) => {
+                let currentHostId = this._hostId;
+                done();
+                if (currentHostId === peer) {
+                    lock.acquire('disconnect', (done) => {
+                        // @ts-ignore
+                        for (let peerImpl of this._peers.values()) {
+                            if (peerImpl.socket.connected) {
+                                this._host = peerImpl;
+                                this._hostId = peerImpl.id;
+                                done();
+                                console.log(`new host id: ${peerImpl.id}`);
+                                mysqlDB.setHost(peerImpl.id, this._roomId, (error, res) => {
+                                    console.log(`setHost: error: ${error}, result: ${res}`);
+                                    if (res) {
+                                        logger.info(`TransferHostBeforeClose : transfer host from ${peer.id} to ${peerImpl.id}`);
+                                        _notify(peer.socket, 'hostChanged', {newHostId : peerImpl.id}, true, this._roomId);
+                                    } else {
+                                        logger.warn(`set host Error : ${error}`);
+                                    }
+                                });
+                                break;
+                            }
                         }
-                     });
+                    });
+                    logger.info(`Host ${peer.id} Exit`);
+                } else {
+                    logger.info(`Member Exit : ${peer.id}!`);
                 }
-            } else {
-                logger.info(`Member Exit : ${peer.id}!`);
-            }
+            });
+
 
             peer.setPeerInfo({
                 displayName : undefined,

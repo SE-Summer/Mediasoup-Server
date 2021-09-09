@@ -333,7 +333,7 @@ const handleRoomConnection = async (socket)=> {
             }, 5000);
             return;
         } else {
-            const room = await getOrCreateRoom({ roomId, host: res, peerId });
+            const room = await getOrCreateRoom({ roomId, host: res, peerId: _peerId });
             if (room == null) {
                 _notify(socket, 'allowed', {allowed : false});
                 setTimeout(() => {

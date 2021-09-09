@@ -51,7 +51,7 @@ export class Room extends EventEmitter{
 
         this._hostId = hostId;
 
-        console.log(`Room created, roomId = ${this._roomId}`);
+        logger.info(`Room created, roomId = ${this._roomId}`);
     }
 
     _getJoinedPeers({ excludePeer = undefined } = {})
@@ -222,9 +222,7 @@ export class Room extends EventEmitter{
                                 this._hostId = peerImpl.id;
                                 unlockWrite();
                                 shouldUnlock = false;
-                                console.log(`new host id: ${peerImpl.id}`);
                                 mysqlDB.setHost(peerImpl.id, this._roomId, (error, res) => {
-                                    console.log(`setHost: error: ${error}, result: ${res}`);
                                     if (res) {
                                         logger.info(`TransferHostBeforeClose : transfer host from ${peer.id} to ${peerImpl.id}`);
                                         _notify(peer.socket, 'hostChanged', {newHostId : peerImpl.id}, true, this._roomId);
@@ -648,13 +646,12 @@ export class Room extends EventEmitter{
                 if (mutedPeerId == null) {
                     logger.info(`Mute : mute all members except host`);
 
-                    this._peers.forEach(async (peer) =>  {
+                    this._peers.forEach((peer) =>  {
                         if (peer !== this._host) {
-                            console.log(peer.getAllAudioProducer())
                             for (const audio of peer.getAllAudioProducer()) {
-                                console.log('[MUTE]', audio)
+                                logger.info('[MUTE]', audio)
                                 _notify(peer.socket, 'beMuted', {producerId : audio.id});
-                                await audio.close();
+                                audio.close();
                                 peer.deleteProducer(audio.id);
                             }
                         }
@@ -702,7 +699,6 @@ export class Room extends EventEmitter{
                 }
 
                 mysqlDB.setHost(hostId, this._roomId, (error, res) => {
-                    console.log(`setHost: error: ${error}, result: ${res}`);
                    if (res) {
                        logger.info(`TransferHost : transfer host from ${peer.id} to ${hostId}`);
                        this._host = newHost;
@@ -765,11 +761,6 @@ export class Room extends EventEmitter{
                 for (let dataConsumer of allDataConsumer) {
                     allDataConsumerStat.push(await dataConsumer.getStats())
                 }
-
-                console.log('allProducerStat', allProducerStat)
-                console.log('allConsumerStat', allConsumerStat)
-                console.log('allDataProducerStat', allDataProducerStat)
-                console.log('allDataConsumerStat', allDataConsumerStat)
 
                 callback(null, {
                     'allProducerStat' : allProducerStat,

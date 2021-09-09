@@ -322,9 +322,8 @@ const ios = new Server(httpsServer, {
 const handleRoomConnection = async (socket)=> {
     const {roomId, userToken, peerId} = socket.handshake.query;
     const _peerId = Number.parseInt(peerId);
-    console.log(`Connection: roomId: ${roomId}, userToken: ${userToken}, peerId: ${peerId}`);
+    logger.info(`Connection: roomId: ${roomId}, userToken: ${userToken}, peerId: ${peerId}`);
     mysqlDB.isHost(userToken, roomId, _peerId, async (error, res) => {
-        console.log(`isHost: error: ${error}, result: ${res}`);
         if (error) {
             logger.warn(`room ${roomId} or peer ${peerId} is illegal!`);
             _notify(socket, 'allowed', {allowed : false});

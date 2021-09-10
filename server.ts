@@ -276,6 +276,17 @@ app.post(
     }
 )
 
+app.post('/nickname', (req, res) => {
+    const { token, nickname } = req.body;
+    mysqlDB.setNickname(token, nickname, (err, ok) => {
+        if (err) {
+            res.status(401).json({ "error": err });
+        } else {
+            res.status(200).json({ "status": "OK" });
+        }
+    });
+})
+
 app.post(
     '/file',
     (req, res)=> {

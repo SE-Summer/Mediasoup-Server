@@ -380,6 +380,20 @@ export class DB {
         )
     }
 
+    setNickname(token, nickname, callback) {
+        const updateString = `update users set nickname="${nickname}" where token="${token}"`;
+        this._connection.query(updateString, (err, ok) => {
+            if (err) {
+                logger.error('[SQL_UPDATE_ERROR] ', err.message);
+                callback('SUE', null);
+            } else if (ok.changedRows === 0) {
+                callback('Wrong Token', null);
+            } else {
+                callback(null, ok);
+            }
+        });
+    }
+
     savePortrait(token, path, callback){
         const queryString = 'update users set portrait="'+path+'" where token="'+token+'"';
         this._connection.query(

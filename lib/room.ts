@@ -83,7 +83,7 @@ export class Room extends EventEmitter{
     notify(socket : Socket, method : string, data = {}, broadcast = false) {
         if (broadcast) {
             this._doOnJoinedPeers(null, (peerImpl) => {
-                peerImpl.socket.emit('notify', {method, data});
+                peerImpl.socket.id !== socket.id && peerImpl.socket.emit('notify', {method, data});
             });
         } else {
             socket.emit('notify', {method, data});
@@ -191,7 +191,7 @@ export class Room extends EventEmitter{
             peer = this._peers.get(peerId);
             logger.info(`peer ${peerId} reconnect`);
             peer.socket.removeAllListeners(['disconnect']);
-	    peer.socket = socket;
+	        peer.socket = socket;
         } else {
             peer = new PeerImpl(peerId, socket);
             this._peers.set(peerId, peer);

@@ -1,6 +1,6 @@
-//import {mysql} from "mysql"
 const mysql = require("mysql")
 const moment = require('moment');
+import { logger } from '../lib/global';
 import {sendMail} from './send-email'
 
 const randomString = require("string-random")
@@ -9,13 +9,24 @@ export class DB {
     private _connection;
 
     constructor() {
+        this.connectDB()
+    }
+
+    connectDB() {
         this._connection = mysql.createConnection({
             host: 'localhost',
             user: 'root',
-            password: '655566',
+            password: '123456',
             database: 'test'
         });
 
+        this._connection.on('error', (error) => {
+            logger.error('DB_ERROR', error.message)
+            if (error.code === 'PROTOCOL_CONNECTION_LOST') {
+                logger.error('[DB_CONNECTION_LOST] Try to reconnect...')
+                this.connectDB()
+            }
+        })
         this._connection.connect();
     }
 
@@ -24,7 +35,7 @@ export class DB {
             'select * from users',
             (err, rows)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null)
                 }else{
                     callback(null, rows)
@@ -38,71 +49,91 @@ export class DB {
             'select r.id, r.token, r.password, r.host, r.end_time, r.start_time, r.topic, r.max_num from rooms r, users u, reservations e where u.id=e.userId and r.id=e.roomId and u.token="' + token +'" order by r.start_time desc',
             (err, rows)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null)
                 }else{
+                    rows.forEach((row)=>{
+                        row.start_time = moment(row.start_time).format('YYYY-MM-DD HH:mm')
+                        row.end_time = moment(row.end_time).format('YYYY-MM-DD HH:mm')
+                    })
                     callback(null, rows)
                 }
             }
         )
     }
 
-    isHost(userToken, roomToken, callback){
-        const queryString = 'select * from rooms where token="'+roomToken+'"';
+    getHistory(token, callback){
         this._connection.query(
-            queryString,
+            'select r.id, r.token, r.password, r.host, r.end_time, r.start_time, r.topic, r.max_num, h.time from rooms r, users u, history h where u.id=h.userId and r.id=h.roomId and u.token="' + token +'" order by h.time desc',
             (err, rows)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null)
                 }else{
-                    if (rows.length === 0){
-                        callback('No Such Room', null);
-                    }else{
-                        const host = rows[0].host;
-                        const queryString2 = 'select * from users where token="'+userToken+'"';
-                        this._connection.query(
-                            queryString2,
-                            (err, rows)=>{
-                                if(err){
-                                    console.log('[SQL_SELECT_ERROR] ', err.message);
-                                    callback('SSE', null)
-                                }else{
-                                    if (rows.length === 0){
-                                        callback('No Such User', null);
-                                    }else if (rows[0].id === host){
-                                        callback(null, true);
-                                    }else{
-                                        callback(null, false);
-                                    }
-                                }
-                            }
-                        )
-                    }
+                    rows.forEach((row)=>{
+                        row.start_time = moment(row.start_time).format('YYYY-MM-DD HH:mm')
+                        row.end_time = moment(row.end_time).format('YYYY-MM-DD HH:mm')
+                        row.time = moment(row.time).format('YYYY-MM-DD HH:mm')
+                    })
+                    callback(null, rows)
                 }
             }
         )
     }
 
-    setHost(userToken, roomToken, callback){
-        const queryString = 'select * from users where token="'+userToken+'"';
+    isHost(userToken, roomToken, peerId: number, callback){
+        const queryUserString = `select token from users where id=${peerId} limit 1`
+        this._connection.query(queryUserString, (err, rows) => {
+            if (err){
+                logger.error('[SQL_SELECT_ERROR] ', err.message);
+                callback('SSE', null);
+            } else {
+                if (rows.length === 0) {
+                    callback('No Such User', null);
+                    return;
+                } else if (rows[0].token !== userToken) {
+                    callback('Wrong userToken', null);
+                    return;
+                }
+                const queryRoomString = `select host from rooms where token="${roomToken}" limit 1`
+                this._connection.query(queryRoomString, (err, rows) => {
+                    if (err) {
+                        logger.error('[SQL_SELECT_ERROR] ', err.message);
+                        callback('SSE', null);
+                    } else {
+                        if (rows.length === 0) {
+                            callback('No Such Room', null);
+                        } else {
+                            if (peerId === rows[0].host){
+                                callback(null, true);
+                            } else{
+                                callback(null, false);
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    setHost(userId: number, roomToken, callback){
+        const queryString = `select token from users where id=` + userId;
         this._connection.query(
             queryString,
             (err, rows)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null)
                 }else{
                     if (rows.length === 0){
                         callback('No Such User', null);
                     }else{
-                        const id = rows[0].id;
-                        const queryString2 = 'update rooms set host='+id+' where token="'+roomToken+'"';
+                        const queryString2 = 'update rooms set host='+userId+' where token="'+roomToken+'"';
                         this._connection.query(
                             queryString2,
                             (err, ok)=>{
                                 if(err){
-                                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                                     callback('SSE', null)
                                 }else{
                                     if (ok.changedRows === 0){
@@ -125,7 +156,7 @@ export class DB {
             queryString,
             (err, ok)=>{
                 if(err){
-                    console.log('[SQL_INSERT_ERROR] ', err.message);
+                    logger.error('[SQL_INSERT_ERROR] ', err.message);
                     callback("SIE", null)
                 }else{
                     if (ok.changedRows > 0){
@@ -143,9 +174,9 @@ export class DB {
         const queryString = 'insert into users set email="'+email+'",verify="'+verify+'"';
         sendMail(email, verify, (succ)=>{
             if (succ){
-                console.log("Email Send: ", verify);
+                logger.info("Email Send: ", verify);
             }else{
-                console.log("Email Send Failed!")
+                logger.error("Email Send Failed!")
             }
         })
         this._connection.query(
@@ -157,7 +188,7 @@ export class DB {
                         queryString,
                         (err, ok)=>{
                             if(err){
-                                console.log('[SQL_UPDATE_ERROR] ', err.message);
+                                logger.error('[SQL_UPDATE_ERROR] ', err.message);
                                 callback("SUE", null)
                             }else{
                                 callback(null, ok)
@@ -178,7 +209,7 @@ export class DB {
             queryString,
             (err, ok)=>{
                 if(err){
-                    console.log('[SQL_UPDATE_ERROR] ', err.message);
+                    logger.error('[SQL_UPDATE_ERROR] ', err.message);
                     callback("SUE", null)
                 }else{
                     if (ok.changedRows > 0){
@@ -192,139 +223,143 @@ export class DB {
     }
 
     login(email, password, callback){
-        const queryString = 'select * from users where email="'+email+'"and password="'+password+'"'
-        const updateString = 'update users set token="'+ randomString(32) +'" where email="'+email+'"and password="'+password+'"'
-        this._connection.query(
-            updateString,(err, ok)=>{
-                if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
-                    callback('Unauthorized', null)
-                }else{
-                    this._connection.query(
-                        queryString,
-                        (err, rows)=>{
-                            if(err){
-                                console.log('[SQL_SELECT_ERROR] ', err.message);
-                                callback('SSE', null)
-                            }else{
-                                callback(null, rows)
-                            }
-                        }
-                    )
-                }
+        const selectString = `select * from users where email="${email}" and password="${password}" limit 1`
+        this._connection.query(selectString, (err, rows) => {
+            if (err) {
+                logger.error('[SQL_SELECT_ERROR] ', err.message)
+                callback('SSE', null)
+            } else if (rows.length === 0) {
+                callback('Unauthorized', null)
+            } else {
+                const user = rows[0]
+                const token = randomString(32)
+                user.token = token
+                const updateString = `update users set token="${token}" where id=${user.id} limit 1`
+                this._connection.query(updateString, (err, ok) => {
+                    if (err) {
+                        logger.error('[SQL_UPDATE_ERROR] ', err.message);
+                        callback('SUE', null)
+                    } else {
+                        callback(null, user)
+                    }
+                })
             }
-        )
+        })
     }
 
     autoLogin(token, callback){
-        const queryString = 'select * from users where token="'+token+'"'
+        const queryString = `select * from users where token="${token}" limit 1`
         this._connection.query(
             queryString,
             (err, rows)=>{
-                if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                if (err) {
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null)
-                }else{
-                    callback(null, rows)
+                } else if (rows.length === 0) {
+                    callback('Unauthorized', null)
+                } else {
+                    callback(null, rows[0])
                 }
             }
         )
 
     }
 
-    appoint(token, password, start_time, end_time, max_num, topic, callback){
-        if(start_time >= end_time){
+    appoint(token, password, start_time, end_time, max_num, topic, callback) {
+        if (start_time >= end_time) {
             callback("Invalid End Time", null);
             return;
-        }else if (moment(start_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm') < moment().format('YYYY-MM-DD HH:mm')){
-            callback("Invalid Start Time", null);
-            return;
+        // } else if (moment(start_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm') < moment().format('YYYY-MM-DD HH:mm')){
+        //     callback("Invalid Start Time", null);
+        //     return;
         }
-        const queryString = 'select users.id from users where token="' + token + '"';
-        let host;
-        this._connection.query(
-            queryString,
-            (err, rows)=> {
-                if (err) {
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
-                    callback('SSE', null);
-                    return;
-                } else {
-                    if (rows[0]){
-                        host = rows[0].id
-                        const queryString2 = 'insert into rooms set host='+host+',start_time="'+start_time+'",end_time="'+end_time+'",max_num='+max_num+',topic="'+topic+'",token="'+randomString()+'",password="'+password+'"'
-                        this._connection.query(
-                            queryString2,
-                            (err, ok)=>{
-                                if(err){
-                                    console.log('[SQL_INSERT_ERROR] ', err.message);
-                                    callback('SIE', null)
-                                }else{
-                                    this._connection.query(
-                                        'insert into reservations set userId='+host+', roomId='+ok.insertId,
-                                        (err, ok2)=>{
-                                            if(err){
-                                                console.log('[SQL_SELECT_ERROR] ', err.message);
-                                                callback('SSE', null)
-                                            }else{
-                                                const queryString2 = 'select * from rooms where id='+ok.insertId;
-                                                this._connection.query(
-                                                    queryString2,
-                                                    (err, rows)=>{
-                                                        if(err){
-                                                            console.log('[SQL_SELECT_ERROR] ', err.message);
-                                                            callback('SSE', null)
-                                                        }else{
-                                                            callback(null, rows);
-                                                        }
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    )
-
+        const verifyUserString = `select users.id from users where token="${token}" limit 1`;
+        this._connection.query(verifyUserString, (err, rows)=> {
+            if (err) {
+                logger.error('[SQL_SELECT_ERROR] ', err.message);
+                callback('SSE', null);
+            } else if (rows.length === 0) {
+                callback('Wrong Token', null);
+            } else {
+                const hostId = rows[0].id
+                const roomToken = randomString()
+                const insertRoomString = `insert into rooms set host=${hostId},start_time="${start_time}",end_time="${end_time}",max_num=${max_num},topic="${topic}",token="${roomToken}",password="${password}"`
+                this._connection.query(insertRoomString, (err, ok) => {
+                    if (err) {
+                        logger.error('[SQL_INSERT_ERROR] ', err.message)
+                        callback('SIE', null)
+                    } else {
+                        const roomId = ok.insertId
+                        const insertReservationString = `insert into reservations set userId=${hostId}, roomId=${roomId}`
+                        this._connection.query(insertReservationString, (err, ok) => {
+                            if (err) {
+                                logger.error('[SQL_INSERT_ERROR] ', err.message)
+                                callback('SIE', null)
+                            } else {
+                                const room = {
+                                    id: roomId,
+                                    token: roomToken,
+                                    password,
+                                    host: hostId,
+                                    end_time,
+                                    start_time,
+                                    topic,
+                                    max_num
                                 }
+                                callback(null, room)
                             }
-                        )
-                    }else{
-                        callback('Wrong Token', null);
-                        return;
+                        })
                     }
-                }
+                })
             }
-        )
+        })
     }
 
-    getRoom(id, password, callback){
-        const queryString = 'select * from rooms where id='+id
-        this._connection.query(
-            queryString,
-            (err, rows)=>{
-                if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
-                    callback('SEE', null)
-                }else{
-                    const room = rows[0];
-                    if(room){
-                        room.start_time = moment(room.start_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm');
-                        room.end_time = moment(room.end_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm');
-                        const now_time = moment().format('YYYY-MM-DD HH:mm');
-                        if(room.password === password){
-                            if(room.start_time > now_time || room.end_time < now_time){
-                                console.log(room.start_time, room.end_time, now_time)
+    getRoom(id, password, userToken, callback) {
+        const verifyUserString = `select users.id from users where token="${userToken}" limit 1`
+        this._connection.query(verifyUserString, (err, rows) => {
+            if (err) {
+                logger.error('[SQL_SELECT_ERROR] ', err.message);
+                callback('SEE', null)
+            } else if (rows.length === 0) {
+                callback('Wrong userToken', null)
+            } else {
+                const userId = rows[0].id
+                const selectRoomString = `select * from rooms where id=${id} limit 1`
+                this._connection.query(selectRoomString, (err, rows) => {
+                    if (err) {
+                        logger.error('[SQL_SELECT_ERROR] ', err.message);
+                        callback('SEE', null)
+                    } else if (rows.length === 0) {
+                        callback('No Such Room', null)
+                    } else {
+                        const room = rows[0]
+                        if (room.password === password) {
+                            const start_time = moment(room.start_time, moment.ISO_8601)
+                            const end_time = moment(room.end_time, moment.ISO_8601)
+                            const now_time = moment()
+                            if (start_time.isAfter(now_time) || end_time.isBefore(now_time)) {
                                 callback("Invalid Time", room);
-                            }else{
-                                callback(null, room);
+                            } else {
+                                const insertHistoryString = `insert into history set userId = ${userId}, roomId=${id}, time="${now_time.format('YYYY-MM-DD HH:mm')}"`
+                                this._connection.query(insertHistoryString, (err, ok) => {
+                                    if (err) {
+                                        logger.error('[SQL_INSERT_ERROR] ', err.message);
+                                        callback('SIE', null)
+                                    } else {
+                                        room.start_time = start_time.format('YYYY-MM-DD HH:mm')
+                                        room.end_time = end_time.format('YYYY-MM-DD HH:mm')
+                                        callback(null, room);
+                                    }
+                                })
                             }
-                        }else{
+                        } else {
                             callback('Unauthorized', null)
                         }
-                    }else{
-                        callback("No Such Room", null)
                     }
-                }
+                })
             }
-        )
+        })
     }
 
     getPortrait(token, callback){
@@ -332,7 +367,7 @@ export class DB {
             'select users.portrait from users where token="'+token+'"',
             (err, rows)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null)
                 }else{
                     if (rows.length === 0){
@@ -345,13 +380,27 @@ export class DB {
         )
     }
 
+    setNickname(token, nickname, callback) {
+        const updateString = `update users set nickname="${nickname}" where token="${token}"`;
+        this._connection.query(updateString, (err, ok) => {
+            if (err) {
+                logger.error('[SQL_UPDATE_ERROR] ', err.message);
+                callback('SUE', null);
+            } else if (ok.changedRows === 0) {
+                callback('Wrong Token', null);
+            } else {
+                callback(null, ok);
+            }
+        });
+    }
+
     savePortrait(token, path, callback){
         const queryString = 'update users set portrait="'+path+'" where token="'+token+'"';
         this._connection.query(
             queryString,
             (err, ok)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null);
                 }else if (ok.changedRows === 0){
                     callback('Wrong Token', null);
@@ -366,7 +415,7 @@ export class DB {
             'select users.id from users where token="'+token+'"',
             (err, rows)=>{
                 if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                    logger.error('[SQL_SELECT_ERROR] ', err.message);
                     callback('SSE', null)
                 }else{
                     if (rows.length === 0){
@@ -377,7 +426,7 @@ export class DB {
                             queryString,
                             (err, ok)=>{
                                 if(err){
-                                    console.log('[SQL_INSERT_ERROR] ', err.message);
+                                    logger.error('[SQL_INSERT_ERROR] ', err.message);
                                     callback('SIE', null);
                                 }else {
                                     callback(null, ok);
@@ -390,49 +439,47 @@ export class DB {
         )
     }
 
-    reserve(token, roomId, password, callback){
-        let userId;
-        this._connection.query(
-            'select users.id from users where token="'+token+'"',
-            (err, rows)=>{
-                if(err){
-                    console.log('[SQL_SELECT_ERROR] ', err.message);
-                    callback('SSE', null)
-                }else{
-                    if (rows.length === 0){
-                        callback("Wrong Token", null);
-                    }else{
-                        userId = rows[0].id
-                        const queryString = 'select rooms.id from rooms where id='+roomId+' and password="'+password+'"';
-                        this._connection.query(
-                            queryString,
-                            (err, rows)=>{
-                                if(err){
-                                    console.log('[SQL_SELECT_ERROR] ', err.message);
-                                    callback('SEE', null);
-                                }else {
-                                    if (rows.length === 0){
-                                        callback("No Such Room", null);
-                                    }else{
-                                        const queryString2 = 'insert into reservations set userId='+ userId +', roomId='+roomId;
-                                        this._connection.query(
-                                            queryString2,
-                                            (err, ok)=>{
-                                                if(err){
-                                                    console.log('[SQL_INSERT_ERROR] ', err.message);
-                                                    callback('SIE', null);
-                                                }else {
-                                                    callback(null, ok);
-                                                }
-                                            }
-                                        )
+    reserve(token, roomId, password, callback) {
+        const verifyUserString = `select users.id from users where token="${token}" limit 1`
+        this._connection.query(verifyUserString, (err, rows) => {
+            if (err) {
+                logger.error('[SQL_SELECT_ERROR] ', err.message);
+                callback('SEE', null)
+            } else if (rows.length === 0) {
+                callback('Wrong Token', null)
+            } else {
+                const userId = rows[0].id
+                const selectRoomString = `select rooms.id from rooms where id=${roomId} and password="${password}" limit 1`
+                this._connection.query(selectRoomString, (err, rows) => {
+                    if (err) {
+                        logger.error('[SQL_SELECT_ERROR] ', err.message);
+                        callback('SEE', null)
+                    } else if (rows.length === 0) {
+                        callback('No Such Room', null)
+                    } else {
+                        const roomId = rows[0].id
+                        const selectReservationString = `select reservations.id from reservations where userId=${userId} and roomId=${roomId} limit 1`
+                        this._connection.query(selectReservationString, (err, rows) => {
+                            if (err) {
+                                logger.error('[SQL_SELECT_ERROR] ', err.message);
+                                callback('SEE', null)
+                            } else if (rows.length === 0) {
+                                const insertString = `insert into reservations set userId=${userId}, roomId=${roomId}`
+                                this._connection.query(insertString, (err, ok) => {
+                                    if (err) {
+                                        logger.error('[SQL_INSERT_ERROR] ', err.message);
+                                        callback('SIE', null);
+                                    } else {
+                                        callback(null, ok);
                                     }
-                                }
+                                })
+                            } else {
+                                callback('Already Reserved', null)
                             }
-                        )
+                        })
                     }
-                }
+                })
             }
-        )
+        })
     }
 }

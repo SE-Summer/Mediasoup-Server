@@ -4,6 +4,7 @@ exports.DB = void 0;
 //import {mysql} from "mysql"
 var mysql = require("mysql");
 var moment = require('moment');
+var global_1 = require("../lib/global");
 var send_email_1 = require("./send-email");
 var randomString = require("string-random");
 var DB = /** @class */ (function () {
@@ -19,7 +20,7 @@ var DB = /** @class */ (function () {
     DB.prototype.getUsers = function (callback) {
         this._connection.query('select * from users', function (err, rows) {
             if (err) {
-                console.log('[SQL_SELECT_ERROR] ', err.message);
+                global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                 callback('SSE', null);
             }
             else {
@@ -30,56 +31,80 @@ var DB = /** @class */ (function () {
     DB.prototype.getRooms = function (token, callback) {
         this._connection.query('select r.id, r.token, r.password, r.host, r.end_time, r.start_time, r.topic, r.max_num from rooms r, users u, reservations e where u.id=e.userId and r.id=e.roomId and u.token="' + token + '" order by r.start_time desc', function (err, rows) {
             if (err) {
-                console.log('[SQL_SELECT_ERROR] ', err.message);
+                global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                 callback('SSE', null);
             }
             else {
+                rows.forEach(function (row) {
+                    row.start_time = moment(row.start_time).format('YYYY-MM-DD HH:mm');
+                    row.end_time = moment(row.end_time).format('YYYY-MM-DD HH:mm');
+                });
                 callback(null, rows);
             }
         });
     };
-    DB.prototype.isHost = function (userToken, roomToken, callback) {
-        var _this = this;
-        var queryString = 'select * from rooms where token="' + roomToken + '"';
-        this._connection.query(queryString, function (err, rows) {
+    DB.prototype.getHistory = function (token, callback) {
+        this._connection.query('select r.id, r.token, r.password, r.host, r.end_time, r.start_time, r.topic, r.max_num, h.time from rooms r, users u, history h where u.id=h.userId and r.id=h.roomId and u.token="' + token + '" order by h.time desc', function (err, rows) {
             if (err) {
-                console.log('[SQL_SELECT_ERROR] ', err.message);
+                global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
+                callback('SSE', null);
+            }
+            else {
+                rows.forEach(function (row) {
+                    row.start_time = moment(row.start_time).format('YYYY-MM-DD HH:mm');
+                    row.end_time = moment(row.end_time).format('YYYY-MM-DD HH:mm');
+                    row.time = moment(row.time).format('YYYY-MM-DD HH:mm');
+                });
+                callback(null, rows);
+            }
+        });
+    };
+    DB.prototype.isHost = function (userToken, roomToken, peerId, callback) {
+        var _this = this;
+        var queryUserString = "select * from users where id=" + peerId + " limit 1";
+        this._connection.query(queryUserString, function (err, rows) {
+            if (err) {
+                global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                 callback('SSE', null);
             }
             else {
                 if (rows.length === 0) {
-                    callback('No Such Room', null);
+                    callback('No Such User', null);
+                    return;
                 }
-                else {
-                    var host_1 = rows[0].host;
-                    var queryString2 = 'select * from users where token="' + userToken + '"';
-                    _this._connection.query(queryString2, function (err, rows) {
-                        if (err) {
-                            console.log('[SQL_SELECT_ERROR] ', err.message);
-                            callback('SSE', null);
+                else if (rows[0].token !== userToken) {
+                    callback('Wrong userToken', null);
+                    return;
+                }
+                var queryRoomString = "select * from rooms where token=\"" + roomToken + "\" limit 1";
+                _this._connection.query(queryRoomString, function (err, rows) {
+                    if (err) {
+                        global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
+                        callback('SSE', null);
+                    }
+                    else {
+                        if (rows.length === 0) {
+                            callback('No Such Room', null);
                         }
                         else {
-                            if (rows.length === 0) {
-                                callback('No Such User', null);
-                            }
-                            else if (rows[0].id === host_1) {
+                            if (peerId === rows[0].host) {
                                 callback(null, true);
                             }
                             else {
                                 callback(null, false);
                             }
                         }
-                    });
-                }
+                    }
+                });
             }
         });
     };
-    DB.prototype.setHost = function (userToken, roomToken, callback) {
+    DB.prototype.setHost = function (userId, roomToken, callback) {
         var _this = this;
-        var queryString = 'select * from users where token="' + userToken + '"';
+        var queryString = "select * from users where id=" + userId + " limit 1";
         this._connection.query(queryString, function (err, rows) {
             if (err) {
-                console.log('[SQL_SELECT_ERROR] ', err.message);
+                global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                 callback('SSE', null);
             }
             else {
@@ -87,11 +112,10 @@ var DB = /** @class */ (function () {
                     callback('No Such User', null);
                 }
                 else {
-                    var id = rows[0].id;
-                    var queryString2 = 'update rooms set host=' + id + ' where token="' + roomToken + '"';
+                    var queryString2 = 'update rooms set host=' + userId + ' where token="' + roomToken + '"';
                     _this._connection.query(queryString2, function (err, ok) {
                         if (err) {
-                            console.log('[SQL_SELECT_ERROR] ', err.message);
+                            global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                             callback('SSE', null);
                         }
                         else {
@@ -111,7 +135,7 @@ var DB = /** @class */ (function () {
         var queryString = 'update users set nickname="' + nickname + '", password="' + password + '", verify=null where token="' + token + '"';
         this._connection.query(queryString, function (err, ok) {
             if (err) {
-                console.log('[SQL_INSERT_ERROR] ', err.message);
+                global_1.logger.error('[SQL_INSERT_ERROR] ', err.message);
                 callback("SIE", null);
             }
             else {
@@ -130,10 +154,10 @@ var DB = /** @class */ (function () {
         var queryString = 'insert into users set email="' + email + '",verify="' + verify + '"';
         send_email_1.sendMail(email, verify, function (succ) {
             if (succ) {
-                console.log("Email Send: ", verify);
+                global_1.logger.info("Email Send: ", verify);
             }
             else {
-                console.log("Email Send Failed!");
+                global_1.logger.error("Email Send Failed!");
             }
         });
         this._connection.query(queryString, function (err, ok) {
@@ -141,7 +165,7 @@ var DB = /** @class */ (function () {
                 var queryString_1 = 'update users set verify="' + verify + '" where email="' + email + '"';
                 _this._connection.query(queryString_1, function (err, ok) {
                     if (err) {
-                        console.log('[SQL_UPDATE_ERROR] ', err.message);
+                        global_1.logger.error('[SQL_UPDATE_ERROR] ', err.message);
                         callback("SUE", null);
                     }
                     else {
@@ -159,7 +183,7 @@ var DB = /** @class */ (function () {
         var queryString = 'update users set token="' + token + '" where verify="' + verify + '" and email="' + email + '"';
         this._connection.query(queryString, function (err, ok) {
             if (err) {
-                console.log('[SQL_UPDATE_ERROR] ', err.message);
+                global_1.logger.error('[SQL_UPDATE_ERROR] ', err.message);
                 callback("SUE", null);
             }
             else {
@@ -178,13 +202,13 @@ var DB = /** @class */ (function () {
         var updateString = 'update users set token="' + randomString(32) + '" where email="' + email + '"and password="' + password + '"';
         this._connection.query(updateString, function (err, ok) {
             if (err) {
-                console.log('[SQL_SELECT_ERROR] ', err.message);
+                global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                 callback('Unauthorized', null);
             }
             else {
                 _this._connection.query(queryString, function (err, rows) {
                     if (err) {
-                        console.log('[SQL_SELECT_ERROR] ', err.message);
+                        global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                         callback('SSE', null);
                     }
                     else {
@@ -198,7 +222,7 @@ var DB = /** @class */ (function () {
         var queryString = 'select * from users where token="' + token + '"';
         this._connection.query(queryString, function (err, rows) {
             if (err) {
-                console.log('[SQL_SELECT_ERROR] ', err.message);
+                global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                 callback('SSE', null);
             }
             else {
@@ -220,7 +244,7 @@ var DB = /** @class */ (function () {
         var host;
         this._connection.query(queryString, function (err, rows) {
             if (err) {
-                console.log('[SQL_SELECT_ERROR] ', err.message);
+                global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                 callback('SSE', null);
                 return;
             }
@@ -230,20 +254,20 @@ var DB = /** @class */ (function () {
                     var queryString2 = 'insert into rooms set host=' + host + ',start_time="' + start_time + '",end_time="' + end_time + '",max_num=' + max_num + ',topic="' + topic + '",token="' + randomString() + '",password="' + password + '"';
                     _this._connection.query(queryString2, function (err, ok) {
                         if (err) {
-                            console.log('[SQL_INSERT_ERROR] ', err.message);
+                            global_1.logger.error('[SQL_INSERT_ERROR] ', err.message);
                             callback('SIE', null);
                         }
                         else {
                             _this._connection.query('insert into reservations set userId=' + host + ', roomId=' + ok.insertId, function (err, ok2) {
                                 if (err) {
-                                    console.log('[SQL_SELECT_ERROR] ', err.message);
+                                    global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                                     callback('SSE', null);
                                 }
                                 else {
                                     var queryString2_1 = 'select * from rooms where id=' + ok.insertId;
                                     _this._connection.query(queryString2_1, function (err, rows) {
                                         if (err) {
-                                            console.log('[SQL_SELECT_ERROR] ', err.message);
+                                            global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                                             callback('SSE', null);
                                         }
                                         else {
@@ -262,34 +286,59 @@ var DB = /** @class */ (function () {
             }
         });
     };
-    DB.prototype.getRoom = function (id, password, callback) {
-        var queryString = 'select * from rooms where id=' + id;
+    DB.prototype.getRoom = function (id, password, userToken, callback) {
+        var _this = this;
+        var queryString = 'select * from users where token="' + userToken + '"';
         this._connection.query(queryString, function (err, rows) {
             if (err) {
-                console.log('[SQL_SELECT_ERROR] ', err.message);
+                global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                 callback('SEE', null);
             }
             else {
-                var room = rows[0];
-                if (room) {
-                    room.start_time = moment(room.start_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm');
-                    room.end_time = moment(room.end_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm');
-                    var now_time = moment().format('YYYY-MM-DD HH:mm');
-                    if (room.password === password) {
-                        if (room.start_time > now_time || room.end_time < now_time) {
-                            console.log(room.start_time, room.end_time, now_time);
-                            callback("Invalid Time", room);
-                        }
-                        else {
-                            callback(null, room);
-                        }
-                    }
-                    else {
-                        callback('Unauthorized', null);
-                    }
+                if (rows.length === 0) {
+                    callback('Wrong userToken', null);
                 }
                 else {
-                    callback("No Such Room", null);
+                    var userId_1 = rows[0].id;
+                    var queryString2 = 'select * from rooms where id=' + id;
+                    _this._connection.query(queryString2, function (err, rows) {
+                        if (err) {
+                            global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
+                            callback('SEE', null);
+                        }
+                        else {
+                            var room_1 = rows[0];
+                            if (room_1) {
+                                room_1.start_time = moment(room_1.start_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm');
+                                room_1.end_time = moment(room_1.end_time, moment.ISO_8601).format('YYYY-MM-DD HH:mm');
+                                var now_time = moment().format('YYYY-MM-DD HH:mm');
+                                if (room_1.password === password) {
+                                    if (room_1.start_time > now_time || room_1.end_time < now_time) {
+                                        global_1.logger.error(room_1.start_time, room_1.end_time, now_time);
+                                        callback("Invalid Time", room_1);
+                                    }
+                                    else {
+                                        var queryString3 = 'insert into history set userId = ' + userId_1 + ', roomId=' + id + ', time="' + now_time + '"';
+                                        _this._connection.query(queryString3, function (err, rows) {
+                                            if (err) {
+                                                global_1.logger.error('[SQL_INSERT_ERROR] ', err.message);
+                                                callback('SEE', null);
+                                            }
+                                            else {
+                                                callback(null, room_1);
+                                            }
+                                        });
+                                    }
+                                }
+                                else {
+                                    callback('Unauthorized', null);
+                                }
+                            }
+                            else {
+                                callback("No Such Room", null);
+                            }
+                        }
+                    });
                 }
             }
         });
@@ -297,7 +346,7 @@ var DB = /** @class */ (function () {
     DB.prototype.getPortrait = function (token, callback) {
         this._connection.query('select users.portrait from users where token="' + token + '"', function (err, rows) {
             if (err) {
-                console.log('[SQL_SELECT_ERROR] ', err.message);
+                global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                 callback('SSE', null);
             }
             else {
@@ -314,7 +363,7 @@ var DB = /** @class */ (function () {
         var queryString = 'update users set portrait="' + path + '" where token="' + token + '"';
         this._connection.query(queryString, function (err, ok) {
             if (err) {
-                console.log('[SQL_SELECT_ERROR] ', err.message);
+                global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                 callback('SSE', null);
             }
             else if (ok.changedRows === 0) {
@@ -329,7 +378,7 @@ var DB = /** @class */ (function () {
         var _this = this;
         this._connection.query('select users.id from users where token="' + token + '"', function (err, rows) {
             if (err) {
-                console.log('[SQL_SELECT_ERROR] ', err.message);
+                global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                 callback('SSE', null);
             }
             else {
@@ -340,7 +389,7 @@ var DB = /** @class */ (function () {
                     var queryString = 'insert into files set path="' + path + '", owner=' + rows[0].id;
                     _this._connection.query(queryString, function (err, ok) {
                         if (err) {
-                            console.log('[SQL_INSERT_ERROR] ', err.message);
+                            global_1.logger.error('[SQL_INSERT_ERROR] ', err.message);
                             callback('SIE', null);
                         }
                         else {
@@ -356,7 +405,7 @@ var DB = /** @class */ (function () {
         var userId;
         this._connection.query('select users.id from users where token="' + token + '"', function (err, rows) {
             if (err) {
-                console.log('[SQL_SELECT_ERROR] ', err.message);
+                global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                 callback('SSE', null);
             }
             else {
@@ -368,7 +417,7 @@ var DB = /** @class */ (function () {
                     var queryString = 'select rooms.id from rooms where id=' + roomId + ' and password="' + password + '"';
                     _this._connection.query(queryString, function (err, rows) {
                         if (err) {
-                            console.log('[SQL_SELECT_ERROR] ', err.message);
+                            global_1.logger.error('[SQL_SELECT_ERROR] ', err.message);
                             callback('SEE', null);
                         }
                         else {
@@ -376,14 +425,26 @@ var DB = /** @class */ (function () {
                                 callback("No Such Room", null);
                             }
                             else {
-                                var queryString2 = 'insert into reservations set userId=' + userId + ', roomId=' + roomId;
-                                _this._connection.query(queryString2, function (err, ok) {
+                                var queryString2 = 'select reservations.id from reservations where userId=' + userId + ' and roomId=' + roomId;
+                                _this._connection.query(queryString2, function (err, rows) {
                                     if (err) {
-                                        console.log('[SQL_INSERT_ERROR] ', err.message);
+                                        global_1.logger.error('[SQL_INSERT_ERROR] ', err.message);
                                         callback('SIE', null);
                                     }
+                                    else if (rows.length > 0) {
+                                        callback('Already Reserved', null);
+                                    }
                                     else {
-                                        callback(null, ok);
+                                        var queryString3 = 'insert into reservations set userId=' + userId + ', roomId=' + roomId;
+                                        _this._connection.query(queryString3, function (err, ok) {
+                                            if (err) {
+                                                global_1.logger.error('[SQL_INSERT_ERROR] ', err.message);
+                                                callback('SIE', null);
+                                            }
+                                            else {
+                                                callback(null, ok);
+                                            }
+                                        });
                                     }
                                 });
                             }

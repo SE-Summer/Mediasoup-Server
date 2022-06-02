@@ -1,6 +1,7 @@
 "use strict";
 exports.__esModule = true;
 exports.sendMail = void 0;
+var global_1 = require("../lib/global");
 var nodemailer = require('nodemailer'); //引入模块
 var transporter = nodemailer.createTransport({
     service: '163',
@@ -22,9 +23,9 @@ function sendMail(mail, code, call) {
             '<p>' + code + '</p>' +
             '</div>' +
             '<p>验证码三十分钟内有效。 </p>' +
-            '<p>更多内容请访问www.</p>'
+            '<p>更多内容请访问https://www.se-summer.cn:4446/static/web/index/html</p>'
     };
-    console.log("Sending Email: ", code, " To: ", mail);
+    global_1.logger.info("Sending Email: ", code, " To: ", mail);
     transporter.sendMail(mailOptions, function (error, info) {
         if (error) {
             call(false);

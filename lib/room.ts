@@ -1,18 +1,26 @@
 import {PeerImpl} from "./peerImpl";
-import {Peer} from './peer';
-import {RequestMethod} from "./global";
-import {Socket} from "socket.io";
+import {NotifyMethod, RequestMethod} from "./global";
 import {types as MTypes} from 'mediasoup';
 import {DB} from '../mysql/mysql'
-import {_notify} from "./global";
+import * as socketio from 'socket.io';
+import {Socket} from "socket.io";
 
 const EventEmitter = require('events').EventEmitter;
 const config = require('../config/config');
 const {logger} = require('./global');
+const AsyncLock = require('async-lock');
 const mysqlDB = new DB();
+const lock = new AsyncLock();
 
 export class Room extends EventEmitter{
-    static async create({ worker, roomId })
+    private readonly _peers: Map<number, PeerImpl> = null;
+    private readonly _roomId: string = null;
+    private _closed: boolean = null;
+    private _router: MTypes.Router = null;
+    private _host: PeerImpl = null;
+    private _hostId: number = null;
+
+    static async create({ hostId, worker, roomId })
     {
         logger.info(`Create Room ${roomId}`);
 
@@ -20,14 +28,14 @@ export class Room extends EventEmitter{
 
         const router = await worker.createRouter({ mediaCodecs });
 
-        return new Room(
-            {
+        return new Room({
                 roomId,
+                hostId,
                 router
             });
     }
 
-    constructor({ roomId, router})
+    constructor({ roomId, hostId, router })
     {
         super();
         this.setMaxListeners(Infinity);
@@ -38,9 +46,11 @@ export class Room extends EventEmitter{
 
         this._router = router;
 
-        this._peers = new Map<String, Peer>();
+        this._peers = new Map<number, PeerImpl>();
 
-        this._host = null;
+        this._hostId = hostId;
+
+        logger.info(`Room created, roomId = ${this._roomId}`);
     }
 
     _getJoinedPeers({ excludePeer = undefined } = {})
@@ -52,6 +62,32 @@ export class Room extends EventEmitter{
         let filteredPeers = new Map(this._peers);
         filteredPeers.delete(excludePeer.id);
         return filteredPeers;
+    }
+
+    _doOnJoinedPeers(excludePeer: PeerImpl, callback: (peerImpl: PeerImpl) => void)
+    {
+        if (excludePeer == null) {
+            this._peers.forEach((peerImpl) => {
+                callback(peerImpl);
+            });
+        } else {
+            const excludeId: number = excludePeer.id;
+            this._peers.forEach((peerImpl, id) => {
+                if (id !== excludeId) {
+                    callback(peerImpl);
+                }
+            });
+        }
+    }
+
+    notify(socket : Socket, method : string, data = {}, broadcast = false) {
+        if (broadcast) {
+            this._doOnJoinedPeers(null, (peerImpl) => {
+                peerImpl.socket.id !== socket.id && peerImpl.socket.emit('notify', {method, data});
+            });
+        } else {
+            socket.emit('notify', {method, data});
+        }
     }
 
     async createConsumer(consumerPeer : PeerImpl, producerPeer : PeerImpl, producer : MTypes.Producer) {
@@ -75,7 +111,8 @@ export class Room extends EventEmitter{
         const consumer = await consumerPeer.getConsumerTransport().consume(
             {
                 producerId : producer.id,
-                rtpCapabilities : consumerPeer.getPeerInfo().rtpCapabilities
+                rtpCapabilities : consumerPeer.getPeerInfo().rtpCapabilities,
+                paused: true
             });
 
         consumerPeer.setConsumer(consumer.id, consumer);
@@ -88,20 +125,20 @@ export class Room extends EventEmitter{
         consumer.on('producerclose', () => {
             logger.info(`Consumer of peer ${consumerPeer.id} Closed because of producer of peer ${producerPeer.id} closed`);
             consumerPeer.deleteConsumer(consumer.id);
-            _notify(consumerPeer.socket, 'consumerClosed', {consumerId : consumer.id});
+            this.notify(consumerPeer.socket, 'consumerClosed', {consumerId : consumer.id});
         });
 
         consumer.on('producerpause', () => {
             logger.info(`Consumer of peer ${consumerPeer.id} Paused because of producer of peer ${producerPeer.id} paused!`);
-            _notify(consumerPeer.socket, 'consumerPaused', {consumerId : consumer.id});
+            this.notify(consumerPeer.socket, 'consumerPaused', {consumerId : consumer.id});
         })
 
         consumer.on('producerresume', () => {
             logger.info(`Consumer of peer ${consumerPeer.id} Resumed because of producer of peer ${producerPeer.id} resumed!`);
-            _notify(consumerPeer.socket, 'consumerResumed', {consumerId : consumer.id});
+            this.notify(consumerPeer.socket, 'consumerResumed', {consumerId : consumer.id});
         })
 
-        _notify(consumerPeer.socket, 'newConsumer', {
+        this.notify(consumerPeer.socket, 'newConsumer', {
             producerPeerId : producerPeer.id,
             kind : producer.kind,
             producerId : producer.id,
@@ -134,12 +171,10 @@ export class Room extends EventEmitter{
             consumerPeer.deleteDataConsumer(dataConsumer.id);
             dataConsumer.close();
 
-            _notify(consumerPeer.socket, 'dataConsumerClosed', {
-                dataConsumerId : dataConsumer.id
-            },true, this._roomId);
+            this.notify(consumerPeer.socket, 'dataConsumerClosed', {dataConsumerId : dataConsumer.id});
         })
 
-        _notify(consumerPeer.socket, 'newDataConsumer', {
+        this.notify(consumerPeer.socket, 'newDataConsumer', {
             producerPeerId : producerPeer.id,
             dataProducerId : dataProducer.id,
             dataConsumerId : dataConsumer.id,
@@ -149,13 +184,14 @@ export class Room extends EventEmitter{
         });
     }
 
-    handleConnection(peerId, socket){
+    handleConnection(peerId: number, socket: socketio.Socket){
         let peer;
 
         if (this._peers.has(peerId)) {
             peer = this._peers.get(peerId);
             logger.info(`peer ${peerId} reconnect`);
-            peer.socket = socket;
+            peer.socket.removeAllListeners(['disconnect']);
+	        peer.socket = socket;
         } else {
             peer = new PeerImpl(peerId, socket);
             this._peers.set(peerId, peer);
@@ -170,21 +206,69 @@ export class Room extends EventEmitter{
                 })
         })
 
+        socket.on('notify', (notifyData) => {
+            this._handleNotify(peer, notifyData)
+                .catch((error) => {
+                    logger.warn(`request failed [${error}]`);
+                })
+        })
+
         socket.on('disconnect', () => {
             logger.info(`Peer ${peer.id} disconnected!`);
+            lock.acquire('disconnect', (unlockRead) => {
+                let currentHostId = this._hostId;
+                unlockRead();
+                if (currentHostId === peer.id) {
+                    lock.acquire('disconnect', (unlockWrite) => {
+                        const peers = Array.from(this._peers.values());
+                        const peersLength = peers.length;
+                        let shouldUnlock = true;
+                        for (let i = 0; i < peersLength; ++i) {
+                            const peerImpl = peers[i];
+                            if (peerImpl.socket.connected) {
+                                this._host = peerImpl;
+                                this._hostId = peerImpl.id;
+                                unlockWrite();
+                                shouldUnlock = false;
+                                mysqlDB.setHost(peerImpl.id, this._roomId, (error, res) => {
+                                    if (res) {
+                                        logger.info(`TransferHostBeforeClose : transfer host from ${peer.id} to ${peerImpl.id}`);
+                                        this.notify(peer.socket, 'hostChanged', {newHostId : peerImpl.id}, true);
+                                    } else {
+                                        logger.warn(`set host Error : ${error}`);
+                                    }
+                                });
+                                break;
+                            }
+                        }
+                        shouldUnlock && unlockWrite()
+                    });
+                    logger.info(`Host ${peer.id} Exit`);
+                } else {
+                    logger.info(`Member Exit : ${peer.id}!`);
+                }
+            });
+
+
+            peer.setPeerInfo({
+                displayName : undefined,
+                avatar : undefined,
+                joined : false,
+                closed : true,
+                device : undefined,
+                rtpCapabilities : undefined,
+                sctpCapabilities : undefined
+            });
+            peer.close();
         })
 
         peer.on('close', () => {
-            _notify(socket, 'peerClosed', {
-                peerId : peerId
-            },true, this._roomId);
+            this.notify(socket, 'peerClosed', {peerId : peerId},true);
 
             this._peers.delete(peerId);
             peer.socket.leave(this._roomId);
 
             logger.info(`Peer ${peerId} closed`);
-
-            peer.socket.disconnect(true);
 
             if (this._peers.size === 0) {
                 this.close();
@@ -202,7 +286,7 @@ export class Room extends EventEmitter{
             }
             case RequestMethod.join :
             {
-                const {displayName, avatar,joined, device, rtpCapabilities, sctpCapabilities} = request.data;
+                const {displayName, avatar, joined, device, rtpCapabilities, sctpCapabilities} = request.data;
 
                 if (!rtpCapabilities) {
                     let error = `peer ${peer.id} does not have rtpCapabilities!`;
@@ -222,69 +306,56 @@ export class Room extends EventEmitter{
                     throw Error (error);
                 }
 
-                let host = false;
+                if (this._hostId == peer.id) {
+                    logger.info(`Join : [Host] ${peer.id}`);
+                    this._host = peer;
+                } else {
+                    logger.info(`Join : [Member] ${peer.id}!`);
+                }
 
-                mysqlDB.isHost(peer.id, this._roomId, async (error, res) => {
-                    if (error) {
-                        callback(error);
-                        throw Error (error);
-                    }
-                    else {
-                        host = res;
+                peer.setPeerInfo({
+                    displayName : displayName,
+                    avatar : avatar,
+                    joined : true,
+                    closed : false,
+                    device : device,
+                    rtpCapabilities : rtpCapabilities,
+                    sctpCapabilities : sctpCapabilities
+                });
 
-                        if (host) {
-                            logger.info(`Join : [Host] ${peer.id}`);
-                            this._host = peer;
-                        } else {
-                            logger.info(`Join : [Member] ${peer.id}!`);
-                        }
+                this.notify(peer.socket, 'newPeer', {
+                    id : peer.id,
+                    displayName : displayName,
+                    avatar : avatar,
+                    device : device
+                }, true);
 
-                        peer.setPeerInfo({
-                            displayName : displayName,
-                            avatar : avatar,
-                            joined : true,
-                            closed : false,
-                            device : device,
-                            rtpCapabilities : rtpCapabilities,
-                            sctpCapabilities : sctpCapabilities
-                        });
+                peer.socket.join(this._roomId);
+                this._peers.set(peer.id, peer);
 
-                        _notify(peer.socket, 'newPeer', {
-                            id : peer.id,
-                            displayName : displayName,
-                            avatar : avatar,
-                            device : device
-                        }, true, this._roomId);
+                const peerInfos = [];
 
-                        peer.socket.join(this._roomId);
-                        this._peers.set(peer.id, peer);
+                this._doOnJoinedPeers(peer, (joinedPeer) => {
+                    peerInfos.push({
+                        id : joinedPeer.id,
+                        displayName : joinedPeer.displayName,
+                        avatar : joinedPeer.avatar,
+                        device : joinedPeer.device
+                    });
 
-                        const joinedPeers = this._getJoinedPeers({excludePeer : peer});
-                        const peerInfos = [];
+                    joinedPeer.getAllProducer().forEach((producer) => {
+                        this.createConsumer(peer, joinedPeer, producer);
+                    });
 
-                        joinedPeers.forEach((joinedPeer) => {
-                            peerInfos.push({
-                                id : joinedPeer.id,
-                                displayName : joinedPeer.displayName,
-                                avatar : joinedPeer.avatar,
-                                device : joinedPeer.device
-                            });
-
-                            joinedPeer.getAllProducer().forEach((producer) => {
-                                this.createConsumer(peer, joinedPeer, producer);
-                            });
-
-                            joinedPeer.getAllDataProducer().forEach((dataProducer) => {
-                                this.createDataConsumer(peer, joinedPeer, dataProducer);
-                            })
-                        })
-
-                        callback(null, {
-                            host : this._host.id,
-                            peerInfos
-                        });
-                    }
+                    joinedPeer.getAllDataProducer().forEach((dataProducer) => {
+                        this.createDataConsumer(peer, joinedPeer, dataProducer);
+                    });
                 })
+
+                callback(null, {
+                    host : this._host.id,
+                    peerInfos
+                });
                 break;
             }
             case RequestMethod.createTransport :
@@ -293,7 +364,6 @@ export class Room extends EventEmitter{
                 logger.info(`Create ${transportType} Transport : peer ${peer.id}`);
 
                 if (transportType !== 'consumer' && transportType !== 'producer') {
-                    callback('transport type ERROR!', {sendType : transportType});
                     callback('transport type ERROR!', {sendType : transportType});
                     break;
                 }
@@ -325,6 +395,7 @@ export class Room extends EventEmitter{
                         dtlsParameters : transport.dtlsParameters,
                         sctpParameters : transport.sctpParameters
                     });
+
                 break;
             }
             case RequestMethod.connectWebRtcTransport :
@@ -354,15 +425,13 @@ export class Room extends EventEmitter{
                 }
 
                 appData = {...appData, peerId : peer.id};
-                const producer = await transport.produce(
-                    {kind,rtpParameters,appData});
+                const producer = await transport.produce({kind,rtpParameters,appData});
                 peer.setProducer(producer.id, producer);
                 callback(null, {producerId : producer.id});
 
-                const joinedPeers = this._getJoinedPeers({excludePeer : peer});
-                joinedPeers.forEach((joinedPeer) => {
+                this._doOnJoinedPeers(peer, (joinedPeer) => {
                     this.createConsumer(joinedPeer, peer, producer);
-                })
+                });
                 break;
             }
             case RequestMethod.produceData :
@@ -378,7 +447,7 @@ export class Room extends EventEmitter{
                 }
                 let dataProducer;
 
-                if (sctpStreamParameters === undefined) {
+                if (sctpStreamParameters == undefined) {
                     dataProducer = await transport.produceData({
                         protocol
                     })
@@ -393,12 +462,9 @@ export class Room extends EventEmitter{
 
                 callback(null, {id : dataProducer.id});
 
-                const joinedPeers = this._getJoinedPeers({excludePeer : peer});
-
-                joinedPeers.forEach((joinedPeer) => {
+                this._doOnJoinedPeers(peer, (joinedPeer) => {
                     this.createDataConsumer(joinedPeer, peer, dataProducer);
-                })
-
+                });
                 break;
             }
             case RequestMethod.closeProducer :
@@ -502,7 +568,7 @@ export class Room extends EventEmitter{
 
                 if (toPeerId == null) {
                     logger.info(`SendText : peer ${peer.id} broadcast text`);
-                    _notify(peer.socket, 'newText', message, true, this._roomId);
+                    this.notify(peer.socket, 'newText', message, true);
                     callback(null);
                     logger.debug(`${text}`);
                 } else {
@@ -516,7 +582,7 @@ export class Room extends EventEmitter{
 
                     logger.info(`SendText : peer ${peer.id} send text to ${toPeerId}`);
                     message.broadcast = false;
-                    _notify(recvPeer.socket, 'newText', message);
+                    this.notify(recvPeer.socket, 'newText', message);
                     logger.debug(`${text}`);
                     callback(null);
                 }
@@ -536,33 +602,22 @@ export class Room extends EventEmitter{
                     fileType : fileType
                 }
 
-                _notify(peer.socket, 'newFile', message, true, this._roomId);
+                this.notify(peer.socket, 'newFile', message, true);
                 callback(null);
                 break;
             }
-            case RequestMethod.close :
+            case RequestMethod.closeRoom :
             {
-                console.log(this._peers.size);
-                if (this._host === peer) {
-                    logger.info(`Host ${peer.id} Exit, room closed!`);
-                    _notify(peer.socket, 'roomClosed', null, true, this._roomId);
-                    callback();
-                    this.close();
-                    break;
+                if (this._host !== peer) {
+                    let error = `CLOSE ROOM :peer ${peer.id} is not HOST`;
+                    callback(error);
+                    throw Error (error);
                 }
 
-                logger.info(`Member Exit : ${peer.id}!`);
+                logger.info(`CLOSE ROOM : Host ${peer.id} Exit, room closed!`);
+                this.notify(peer.socket, 'roomClosed', null, true);
                 callback();
-                peer.setPeerInfo({
-                    displayName : undefined,
-                    avatar : undefined,
-                    joined : false,
-                    closed : true,
-                    device : undefined,
-                    rtpCapabilities : undefined,
-                    sctpCapabilities : undefined
-                });
-                peer.close();
+                this.close();
                 break;
             }
             case RequestMethod.kick :
@@ -579,6 +634,7 @@ export class Room extends EventEmitter{
 
                 let kickedPeer = this._peers.get(kickedPeerId);
 
+                this.notify(kickedPeer.socket, 'kicked', null);
                 kickedPeer.close();
                 callback();
                 break;
@@ -593,17 +649,19 @@ export class Room extends EventEmitter{
                     throw Error (error);
                 }
 
-                if (mutedPeerId === `all`) {
+                if (mutedPeerId == null) {
                     logger.info(`Mute : mute all members except host`);
 
-                    for (const peer of this._peers) {
+                    this._peers.forEach((peer) =>  {
                         if (peer !== this._host) {
                             for (const audio of peer.getAllAudioProducer()) {
-                                _notify(peer.socket, 'beMuted');
-                                await audio.pause();
+                                logger.info('[MUTE]', audio)
+                                this.notify(peer.socket, 'beMuted', {producerId : audio.id});
+                                audio.close();
+                                peer.deleteProducer(audio.id);
                             }
                         }
-                    }
+                    })
                     callback();
                     break;
                 }
@@ -619,8 +677,9 @@ export class Room extends EventEmitter{
                 logger.info(`Mute : peer ${peer.id} is muted.`);
 
                 for (const audio of mutedPeer.getAllAudioProducer()) {
-                    _notify(peer.socket, 'muted');
-                    await audio.pause();
+                    this.notify(peer.socket, 'beMuted', {producerId : audio.id});
+                    await audio.close();
+                    peer.deleteProducer(audio.id);
                 }
 
                 callback();
@@ -649,7 +708,8 @@ export class Room extends EventEmitter{
                    if (res) {
                        logger.info(`TransferHost : transfer host from ${peer.id} to ${hostId}`);
                        this._host = newHost;
-                       _notify(newHost.socket, 'hostChanged', {newHostId : hostId}, true, this._roomId);
+                       this._hostId = newHost.id;
+                       this.notify(peer.socket, 'hostChanged', {newHostId : hostId}, true);
                        callback();
                    } else {
                        callback(error);
@@ -679,11 +739,64 @@ export class Room extends EventEmitter{
                 });
                 break;
             }
+            case RequestMethod.getStat : {
+                logger.info(`Get Stat : peer ${peer.id}`)
 
+                let allProducer = peer.getAllProducer();
+                let allConsumer = peer.getAllConsumer();
+                let allDataProducer = peer.getAllDataProducer();
+                let allDataConsumer = peer.getAllDataConsumer();
+
+                let allProducerStat = []
+                let allConsumerStat = []
+                let allDataProducerStat = []
+                let allDataConsumerStat = []
+
+                for (let Producer of allProducer) {
+                    allProducerStat.push(await Producer.getStats())
+                }
+
+                for (let Consumer of allConsumer) {
+                    allConsumerStat.push(await Consumer.getStats())
+                }
+
+                for (let dataProducer of allDataProducer) {
+                    allDataProducerStat.push(await dataProducer.getStats())
+                }
+
+                for (let dataConsumer of allDataConsumer) {
+                    allDataConsumerStat.push(await dataConsumer.getStats())
+                }
+
+                callback(null, {
+                    'allProducerStat' : allProducerStat,
+                    'allConsumerStat' : allConsumerStat,
+                    'allDataProducerStat' : allDataProducerStat,
+                    'allDataConsumerStat' : allDataConsumerStat
+                })
+                break;
+            }
             default :
             {
-                let error = `Unknown Request ${request.method}`;
+                const error = `Unknown Request ${request.method}`;
                 callback(error);
+                throw new Error(error);
+            }
+        }
+    }
+
+    private async _handleNotify(peer : PeerImpl, notify) {
+        switch (notify.method) {
+            case NotifyMethod.sendSpeechText :
+            {
+                const {speechText} = notify.data;
+                logger.info(`Send Speech Text : peer ${peer.id}`)
+                this.notify(peer.socket, 'newSpeechText', {'speechText' : speechText}, true);
+                break;
+            }
+            default :
+            {
+                const error = `Unknown Notify ${notify.method}`;
                 throw new Error(error);
             }
         }
@@ -704,3 +817,4 @@ export class Room extends EventEmitter{
         this.emit('close');
     }
 }
+

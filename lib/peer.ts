@@ -27,6 +27,10 @@ export interface Peer{
 
     getAllAudioProducer ();
 
+    getAllConsumer () ;
+
+    getAllDataConsumer ();
+
     /**
      * @return peerInfo:
      * {

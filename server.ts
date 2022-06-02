@@ -1,10 +1,10 @@
-import {createServer} from "http"
 import {Server} from "socket.io"
 import {Room} from "./lib/room"
 import {DB} from "./mysql/mysql"
-import {request} from "express";
 import {_notify} from "./lib/global";
 
+const http = require('http')
+const https = require('https')
 const express = require("express");
 const mediasoup = require('mediasoup');
 const fs = require('fs');
@@ -13,7 +13,13 @@ const config = require('./config/config.js');
 const app = express();
 const mysqlDB = new DB();
 const {logger} = require('./lib/global');
-const httpServer = createServer(app);
+
+let options = {
+    key:fs.readFileSync('./keys/server.key'),
+    cert:fs.readFileSync('./keys/server.crt')
+}
+const httpsServer = https.createServer(options,app);
+const httpServer = http.createServer(app);
 
 let workers = [];
 let workerIter = 0;
@@ -36,7 +42,7 @@ app.use(multer({ dest: '/tmp/'}).array('file'));
 app.get(
     '/users',
     (req, res)=>{
-        mysqlDB.getUsers((rows)=>{
+        mysqlDB.getUsers((err, rows)=>{
             res.status(200).json({
                 "users": rows
             })
@@ -47,8 +53,8 @@ app.get(
 app.post(
     '/getReservations',
     (req, res)=>{
-        console.log(req.body);
         const {token} = req.body;
+        logger.info(`Post GetReservation : token-${token}`);
         mysqlDB.getRooms(token, (err, rows)=>{
             res.status(200).json({
                 "rooms": rows
@@ -58,10 +64,23 @@ app.post(
 )
 
 app.post(
+    '/getHistory',
+    (req, res)=>{
+        const {token} = req.body;
+        logger.info(`Post GetHistory : token-${token}`);
+        mysqlDB.getHistory(token, (err, rows)=>{
+            res.status(200).json({
+                "history": rows,
+            })
+        });
+    }
+)
+
+app.post(
     '/register',
     (req, res)=>{
-        console.log(req.body);
         const {token, nickname, password} = req.body
+        logger.info(`Post Register : token-${token} nickname-${nickname} password-${password}`);
         mysqlDB.register(token, nickname, password, (err, ok)=>{
             if (err){
                 res.status(401).json({
@@ -79,8 +98,8 @@ app.post(
 app.post(
     '/verify',
     (req, res)=>{
-        console.log(req.body);
         const {email, verify} = req.body
+        logger.info(`Post Verify : email-${email} verify-${verify}`)
         mysqlDB.verify(email, verify, (err, token)=>{
             if (err){
                 res.status(401).json({
@@ -99,8 +118,8 @@ app.post(
 app.post(
     '/email',
     (req, res)=>{
-        console.log(req.body);
         const {email} = req.body
+        logger.info(`Post email : email-${email}`)
         mysqlDB.sendEmail(email, (err, ok)=>{
             if (err){
                 res.status(401).json({
@@ -117,20 +136,16 @@ app.post(
 app.post(
     '/login',
     (req, res)=>{
-        console.log(req.body);
         const {email, password} = req.body;
-        mysqlDB.login(email, password,(err, rows)=>{
+        logger.info(`Post Login : email-${email} password-${password}`)
+        mysqlDB.login(email, password,(err, user)=>{
             if (err){
                 res.status(401).json({
                     "error": err
                 })
-            }else if(rows.length===0){
-                res.status(401).json({
-                    "error": "Unauthorized"
-                })
             }else{
                 res.status(200).json({
-                    "user": rows[0]
+                    "user": user
                 })
             }
         });
@@ -140,20 +155,16 @@ app.post(
 app.post(
     '/autoLogin',
     (req, res)=>{
-        console.log(req.body);
         const {token} = req.body;
-        mysqlDB.autoLogin(token,(err, rows)=>{
-            if (err){
+        logger.info(`Post AutoLogin : token-${token}`)
+        mysqlDB.autoLogin(token,(err, user)=>{
+            if (err) {
                 res.status(401).json({
                     "error": err
                 })
-            }else if(rows.length===0){
-                res.status(401).json({
-                    "error": "Unauthorized"
-                })
-            }else{
+            } else {
                 res.status(200).json({
-                    "user": rows[0]
+                    "user": user
                 })
             }
         });
@@ -163,9 +174,9 @@ app.post(
 app.post(
     '/getRoom',
     (req, res)=>{
-        console.log(req.body);
-        const {id, password} = req.body
-        mysqlDB.getRoom(id, password,(err, room)=>{
+        const {id, password, token} = req.body
+        logger.info(`Post GetRoom : id-${id} password-${password}`)
+        mysqlDB.getRoom(id, password, token,(err, room)=>{
             if (err){
                 res.status(401).json({
                     "error": err,
@@ -183,16 +194,16 @@ app.post(
 app.post(
     '/reserve',
     (req, res)=>{
-        console.log(req.body);
         const {token, password, topic, start_time, end_time, max_num} = req.body
-        mysqlDB.appoint(token, password, start_time, end_time, max_num, topic, (err, rows)=>{
+        logger.info(`Post Reserve : token-${token} password-${password} topic-${topic} start_time${start_time} end_time-${end_time} max_num-${max_num}`)
+        mysqlDB.appoint(token, password, start_time, end_time, max_num, topic, (err, room)=>{
             if (err){
                 res.status(401).json({
                     "error": err
                 })
             }else{
                 res.status(200).json({
-                    "room": rows[0]
+                    "room": room
                 })
             }
         });
@@ -202,8 +213,8 @@ app.post(
 app.post(
     '/reserveOther',
     (req, res)=>{
-        console.log(req.body);
         const {token, roomId, password} = req.body
+        logger.info(`Post ReserveOther : token-${token} roomId-${roomId} password-${password}`)
         mysqlDB.reserve(token, roomId, password, (err, rows)=>{
             if (err){
                 res.status(401).json({
@@ -221,7 +232,6 @@ app.post(
 app.get(
     '/portrait',
     (req, res)=>{
-        console.log(req.query);
         const token = req.query.token;
         mysqlDB.getPortrait(token, (err, rows)=>{
             if (err){
@@ -243,11 +253,10 @@ app.post(
         const token = req.query.token
         let filename = require("string-random")(32) + '.' +req.files[0].mimetype.split('/')[1];
         let des_file = "./uploads/portraits/" + filename; //文件名
-        console.log(des_file);  // 上传的文件信息
         fs.readFile( req.files[0].path, function (err, data) {  // 异步读取文件内容
             fs.writeFile(des_file, data, function (err) { // des_file是文件名，data，文件数据，异步写入到文件
                 if( err ){
-                    console.log( err );
+                    logger.error( err );
                 }else{
                     mysqlDB.savePortrait(token, '/static/portraits/'+filename, (err, ok)=>{
                         if (err){
@@ -267,19 +276,29 @@ app.post(
     }
 )
 
+app.post('/nickname', (req, res) => {
+    const { token, nickname } = req.body;
+    mysqlDB.setNickname(token, nickname, (err, ok) => {
+        if (err) {
+            res.status(401).json({ "error": err });
+        } else {
+            res.status(200).json({ "status": "OK" });
+        }
+    });
+})
+
 app.post(
     '/file',
     (req, res)=> {
         const token = req.query.token
-        console.log(req.files[0]);
         const filetype = req.files[0].originalname.split('.').pop();
         let filename = require("string-random")(32) + '.' + filetype;
         let des_file = "./uploads/files/" + filename; //文件名
-        console.log(des_file);  // 上传的文件信息
+        logger.info(`Post File : token-${token} filetype-${filetype} filename-${filename} des_file-${des_file}`)
         fs.readFile(req.files[0].path, function (err, data) {  // 异步读取文件内容
             fs.writeFile(des_file, data, function (err) { // des_file是文件名，data，文件数据，异步写入到文件
                 if (err) {
-                    console.log(err);
+                    logger.error(err)
                 } else {
                     mysqlDB.saveFile(token, '/static/files/' + filename, (err, ok) => {
                         if (err) {
@@ -302,13 +321,20 @@ app.post(
 createWorkers();
 
 const io = new Server(httpServer, {
-
+    pingTimeout : 5000,
+    cors: { origin: '*' }
 })
 
-io.of('/room').on("connection", async (socket)=> {
-    const {roomId, peerId} = socket.handshake.query;
+const ios = new Server(httpsServer, {
+    pingTimeout : 5000,
+    cors: { origin: '*' }
+})
 
-    mysqlDB.isHost(peerId, roomId, async (error, res) => {
+const handleRoomConnection = async (socket)=> {
+    const {roomId, userToken, peerId} = socket.handshake.query;
+    const _peerId = Number.parseInt(peerId);
+    logger.info(`Connection: roomId: ${roomId}, userToken: ${userToken}, peerId: ${peerId}`);
+    mysqlDB.isHost(userToken, roomId, _peerId, async (error, res) => {
         if (error) {
             logger.warn(`room ${roomId} or peer ${peerId} is illegal!`);
             _notify(socket, 'allowed', {allowed : false});
@@ -317,7 +343,7 @@ io.of('/room').on("connection", async (socket)=> {
             }, 5000);
             return;
         } else {
-            const room = await getOrCreateRoom({roomId, host: res});
+            const room = await getOrCreateRoom({ roomId, host: res, peerId: _peerId });
             if (room == null) {
                 _notify(socket, 'allowed', {allowed : false});
                 setTimeout(() => {
@@ -326,13 +352,17 @@ io.of('/room').on("connection", async (socket)=> {
                 return;
             }
             _notify(socket, 'allowed', {allowed : true});
-            room.handleConnection(peerId, socket);
+            room.handleConnection(_peerId, socket);
         }
     })
-})
+}
 
-httpServer.listen(4446, function () { logger.info('Listening on port 4446') });
-async function getOrCreateRoom({ roomId, host })
+io.of('/room').on("connection", handleRoomConnection)
+ios.of('/room').on("connection", handleRoomConnection);
+
+httpServer.listen(4446, function () { logger.info('http Listening on port 4446') });
+httpsServer.listen(4445, function () { logger.info('https Listening on port 4445') });
+async function getOrCreateRoom({ roomId, host, peerId })
 {
     let room = rooms.get(roomId);
 
@@ -344,9 +374,9 @@ async function getOrCreateRoom({ roomId, host })
             return null;
         }
 
-        //logger.info('creating a new Room [roomId:%s]', roomId);
+        // logger.info('creating a new Room [roomId:%s]', roomId);
         let worker = getWorker();
-        room = await Room.create({worker , roomId });
+        room = await Room.create({ worker , roomId, hostId: peerId });
 
         rooms.set(roomId, room);
         room.on('close', () => {

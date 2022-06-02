@@ -36,11 +36,12 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
     }
 };
 exports.__esModule = true;
-var http_1 = require("http");
 var socket_io_1 = require("socket.io");
 var room_1 = require("./lib/room");
 var mysql_1 = require("./mysql/mysql");
 var global_1 = require("./lib/global");
+var http = require('http');
+var https = require('https');
 var express = require("express");
 var mediasoup = require('mediasoup');
 var fs = require('fs');
@@ -49,7 +50,12 @@ var config = require('./config/config.js');
 var app = express();
 var mysqlDB = new mysql_1.DB();
 var logger = require('./lib/global').logger;
-var httpServer = http_1.createServer(app);
+var options = {
+    key: fs.readFileSync('./keys/server.key'),
+    cert: fs.readFileSync('./keys/server.crt')
+};
+var httpsServer = https.createServer(options, app);
+var httpServer = http.createServer(app);
 var workers = [];
 var workerIter = 0;
 var rooms = new Map();
@@ -74,17 +80,26 @@ app.get('/users', function (req, res) {
     });
 });
 app.post('/getReservations', function (req, res) {
-    console.log(req.body);
     var token = req.body.token;
+    logger.info("Post GetReservation : token-" + token);
     mysqlDB.getRooms(token, function (err, rows) {
         res.status(200).json({
             "rooms": rows
         });
     });
 });
+app.post('/getHistory', function (req, res) {
+    var token = req.body.token;
+    logger.info("Post GetHistory : token-" + token);
+    mysqlDB.getHistory(token, function (err, rows) {
+        res.status(200).json({
+            "history": rows
+        });
+    });
+});
 app.post('/register', function (req, res) {
-    console.log(req.body);
     var _a = req.body, token = _a.token, nickname = _a.nickname, password = _a.password;
+    logger.info("Post Register : token-" + token + " nickname-" + nickname + " password-" + password);
     mysqlDB.register(token, nickname, password, function (err, ok) {
         if (err) {
             res.status(401).json({
@@ -99,8 +114,8 @@ app.post('/register', function (req, res) {
     });
 });
 app.post('/verify', function (req, res) {
-    console.log(req.body);
     var _a = req.body, email = _a.email, verify = _a.verify;
+    logger.info("Post Verify : email-" + email + " verify-" + verify);
     mysqlDB.verify(email, verify, function (err, token) {
         if (err) {
             res.status(401).json({
@@ -116,8 +131,8 @@ app.post('/verify', function (req, res) {
     });
 });
 app.post('/email', function (req, res) {
-    console.log(req.body);
     var email = req.body.email;
+    logger.info("Post email : email-" + email);
     mysqlDB.sendEmail(email, function (err, ok) {
         if (err) {
             res.status(401).json({
@@ -130,8 +145,8 @@ app.post('/email', function (req, res) {
     });
 });
 app.post('/login', function (req, res) {
-    console.log(req.body);
     var _a = req.body, email = _a.email, password = _a.password;
+    logger.info("Post Login : email-" + email + " password-" + password);
     mysqlDB.login(email, password, function (err, rows) {
         if (err) {
             res.status(401).json({
@@ -151,8 +166,8 @@ app.post('/login', function (req, res) {
     });
 });
 app.post('/autoLogin', function (req, res) {
-    console.log(req.body);
     var token = req.body.token;
+    logger.info("Post AutoLogin : token-" + token);
     mysqlDB.autoLogin(token, function (err, rows) {
         if (err) {
             res.status(401).json({
@@ -172,9 +187,9 @@ app.post('/autoLogin', function (req, res) {
     });
 });
 app.post('/getRoom', function (req, res) {
-    console.log(req.body);
-    var _a = req.body, id = _a.id, password = _a.password;
-    mysqlDB.getRoom(id, password, function (err, room) {
+    var _a = req.body, id = _a.id, password = _a.password, token = _a.token;
+    logger.info("Post GetRoom : id-" + id + " password-" + password);
+    mysqlDB.getRoom(id, password, token, function (err, room) {
         if (err) {
             res.status(401).json({
                 "error": err,
@@ -189,8 +204,8 @@ app.post('/getRoom', function (req, res) {
     });
 });
 app.post('/reserve', function (req, res) {
-    console.log(req.body);
     var _a = req.body, token = _a.token, password = _a.password, topic = _a.topic, start_time = _a.start_time, end_time = _a.end_time, max_num = _a.max_num;
+    logger.info("Post Reserve : token-" + token + " password-" + password + " topic-" + topic + " start_time" + start_time + " end_time-" + end_time + " max_num-" + max_num);
     mysqlDB.appoint(token, password, start_time, end_time, max_num, topic, function (err, rows) {
         if (err) {
             res.status(401).json({
@@ -205,8 +220,8 @@ app.post('/reserve', function (req, res) {
     });
 });
 app.post('/reserveOther', function (req, res) {
-    console.log(req.body);
     var _a = req.body, token = _a.token, roomId = _a.roomId, password = _a.password;
+    logger.info("Post ReserveOther : token-" + token + " roomId-" + roomId + " password-" + password);
     mysqlDB.reserve(token, roomId, password, function (err, rows) {
         if (err) {
             res.status(401).json({
@@ -221,7 +236,6 @@ app.post('/reserveOther', function (req, res) {
     });
 });
 app.get('/portrait', function (req, res) {
-    console.log(req.query);
     var token = req.query.token;
     mysqlDB.getPortrait(token, function (err, rows) {
         if (err) {
@@ -240,11 +254,10 @@ app.post('/portrait', function (req, res) {
     var token = req.query.token;
     var filename = require("string-random")(32) + '.' + req.files[0].mimetype.split('/')[1];
     var des_file = "./uploads/portraits/" + filename; //文件名
-    console.log(des_file); // 上传的文件信息
     fs.readFile(req.files[0].path, function (err, data) {
         fs.writeFile(des_file, data, function (err) {
             if (err) {
-                console.log(err);
+                logger.error(err);
             }
             else {
                 mysqlDB.savePortrait(token, '/static/portraits/' + filename, function (err, ok) {
@@ -266,15 +279,14 @@ app.post('/portrait', function (req, res) {
 });
 app.post('/file', function (req, res) {
     var token = req.query.token;
-    console.log(req.files[0]);
     var filetype = req.files[0].originalname.split('.').pop();
     var filename = require("string-random")(32) + '.' + filetype;
     var des_file = "./uploads/files/" + filename; //文件名
-    console.log(des_file); // 上传的文件信息
+    logger.info("Post File : token-" + token + " filetype-" + filetype + " filename-" + filename + " des_file-" + des_file);
     fs.readFile(req.files[0].path, function (err, data) {
         fs.writeFile(des_file, data, function (err) {
             if (err) {
-                console.log(err);
+                logger.error(err);
             }
             else {
                 mysqlDB.saveFile(token, '/static/files/' + filename, function (err, ok) {
@@ -295,16 +307,23 @@ app.post('/file', function (req, res) {
     });
 });
 createWorkers();
-var io = new socket_io_1.Server(httpServer, {});
-io.of('/room').on("connection", function (socket) { return __awaiter(void 0, void 0, void 0, function () {
-    var _a, roomId, peerId;
+var io = new socket_io_1.Server(httpServer, {
+    pingTimeout: 5000
+});
+var ios = new socket_io_1.Server(httpsServer, {
+    pingTimeout: 5000
+});
+var handleRoomConnection = function (socket) { return __awaiter(void 0, void 0, void 0, function () {
+    var _a, roomId, userToken, peerId, _peerId;
     return __generator(this, function (_b) {
-        _a = socket.handshake.query, roomId = _a.roomId, peerId = _a.peerId;
-        mysqlDB.isHost(peerId, roomId, function (error, res) { return __awaiter(void 0, void 0, void 0, function () {
+        _a = socket.handshake.query, roomId = _a.roomId, userToken = _a.userToken, peerId = _a.peerId;
+        _peerId = Number.parseInt(peerId);
+        mysqlDB.isHost(userToken, roomId, _peerId, function (error, res) { return __awaiter(void 0, void 0, void 0, function () {
             var room;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
+                        console.log(error, res);
                         if (!error) return [3 /*break*/, 1];
                         logger.warn("room " + roomId + " or peer " + peerId + " is illegal!");
                         global_1._notify(socket, 'allowed', { allowed: false });
@@ -312,7 +331,7 @@ io.of('/room').on("connection", function (socket) { return __awaiter(void 0, voi
                             socket.disconnect(true);
                         }, 5000);
                         return [2 /*return*/];
-                    case 1: return [4 /*yield*/, getOrCreateRoom({ roomId: roomId, host: res })];
+                    case 1: return [4 /*yield*/, getOrCreateRoom({ roomId: roomId, host: res, peerId: peerId })];
                     case 2:
                         room = _a.sent();
                         if (room == null) {
@@ -323,7 +342,7 @@ io.of('/room').on("connection", function (socket) { return __awaiter(void 0, voi
                             return [2 /*return*/];
                         }
                         global_1._notify(socket, 'allowed', { allowed: true });
-                        room.handleConnection(peerId, socket);
+                        room.handleConnection(_peerId, socket);
                         _a.label = 3;
                     case 3: return [2 /*return*/];
                 }
@@ -331,10 +350,13 @@ io.of('/room').on("connection", function (socket) { return __awaiter(void 0, voi
         }); });
         return [2 /*return*/];
     });
-}); });
-httpServer.listen(4446, function () { logger.info('Listening on port 4446'); });
+}); };
+io.of('/room').on("connection", handleRoomConnection);
+ios.of('/room').on("connection", handleRoomConnection);
+httpServer.listen(4446, function () { logger.info('http Listening on port 4446'); });
+httpsServer.listen(4445, function () { logger.info('https Listening on port 4445'); });
 function getOrCreateRoom(_a) {
-    var roomId = _a.roomId, host = _a.host;
+    var roomId = _a.roomId, host = _a.host, peerId = _a.peerId;
     return __awaiter(this, void 0, void 0, function () {
         var room, worker;
         return __generator(this, function (_b) {
@@ -347,7 +369,7 @@ function getOrCreateRoom(_a) {
                         return [2 /*return*/, null];
                     }
                     worker = getWorker();
-                    return [4 /*yield*/, room_1.Room.create({ worker: worker, roomId: roomId })];
+                    return [4 /*yield*/, room_1.Room.create({ worker: worker, roomId: roomId, hostId: peerId })];
                 case 1:
                     room = _b.sent();
                     rooms.set(roomId, room);

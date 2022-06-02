@@ -65,15 +65,37 @@ export enum RequestMethod {
     pauseConsumer = 'pauseConsumer',
     resumeConsumer = 'resumeConsumer',
     sendText = 'sendText',
-    close = 'close',
+    closeRoom = 'closeRoom',
     kick = 'kick',
     mute = 'mute',
     transferHost = 'transferHost',
     restartIce = 'restartIce',
-    sendFile = 'sendFile'
+    sendFile = 'sendFile',
+    getStat = 'getStat',
 }
 
+export enum NotifyMethod {
+    sendSpeechText = 'sendSpeechText'
+}
+
+let log4js = require('log4js')
+log4js.configure({
+    appenders:{
+        cheese : {
+            type : "dateFile",
+            filename : './uploads/logs/cheese',
+            alwaysIncludePattern: true,
+            pattern : '[yyyy-MM-dd].log',
+            category : 'default',
+            maxLogSize: 11024
+        }
+    },
+    categories : {
+        default: { appenders: [ "cheese"], level: "INFO" }
+    }
+})
 export let logger = require('log4js').getLogger();
+
 logger.level = "debug";
 
 export function _timeoutCallback(callback) {

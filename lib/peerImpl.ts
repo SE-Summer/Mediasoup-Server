@@ -4,13 +4,13 @@ import {Peer} from "./peer";
 import * as socketio from 'socket.io';
 
 export class PeerImpl extends EventEmitter implements Peer{
-    public readonly id : string;
+    public readonly id : number;
     public socket : socketio.Socket;
-    private displayName : string;
-    private avatar : string;
+    displayName : string;
+    avatar : string;
     private joined : boolean = false;
     private closed : boolean = false;
-    private device : object;
+    device : object;
     private rtpCapabilities : MTypes.RtpCapabilities;
     private sctpCapabilities : MTypes.SctpCapabilities;
     private transports = new Map<string, MTypes.WebRtcTransport>();
@@ -19,7 +19,7 @@ export class PeerImpl extends EventEmitter implements Peer{
     private dataProducers = new Map<string, MTypes.DataProducer>();
     private dataConsumers = new Map<string, MTypes.DataConsumer>();
 
-    constructor(id, socket) {
+    constructor(id: number, socket) {
         super();
         this.id = id;
         this.socket = socket;
@@ -92,7 +92,15 @@ export class PeerImpl extends EventEmitter implements Peer{
 
     getAllAudioProducer() {
         return Array.from(this.producers.values())
-            .find((p) => p.kind === 'audio');
+            .filter((p) => p.kind === 'audio');
+    }
+
+    getAllConsumer () {
+        return Array.from(this.consumers.values())
+    }
+
+    getAllDataConsumer () {
+        return Array.from(this.dataConsumers.values())
     }
 
     setTransport(transportID: string, transport: MTypes.WebRtcTransport) {
